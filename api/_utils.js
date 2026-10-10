@@ -1,18 +1,18 @@
 import { chargeUserForRequest, getRequestFeeVnd } from './_wallet.js';
 
-export const DEFAULT_UPSTREAM_URL = 'https://api.hcnsec.cn/v1';
-export const DEFAULT_UPSTREAM_KEY = 'sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5KRiS4MGl';
+export const DEFAULT_UPSTREAM_URL = (process.env.UPSTREAM_BASE_URL || 'https://api.hcnsec.cn/v1').replace(/\/+$/, '');
+export const DEFAULT_UPSTREAM_KEY = (process.env.UPSTREAM_API_KEY || '').trim();
 
 // Cấu hình OpenCode Zen Gate
 export const OPENCODE_BASE_URL = (process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/v1').replace(/\/+$/, '');
-export const OPENCODE_API_KEY = (process.env.OPENCODE_API_KEY || 'oc_sk_443b200450ba_9p00yqJGk3YTJiQ_9BVsGJVhS2cKp3f6').trim();
+export const OPENCODE_API_KEY = (process.env.OPENCODE_API_KEY || '').trim();
 
 // Cấu hình UnoRouter Gate (Step 5 Preview & Free Tier)
 export const UNOROUTER_BASE_URL = (process.env.UNOROUTER_BASE_URL || 'https://api.unorouter.com/v1').replace(/\/+$/, '');
-export const UNOROUTER_API_KEY = (process.env.UNOROUTER_API_KEY || 'sk-CjeXySzJR6H61RnHxW4bSx8tWH2q3DgsML26SNyXd3HrMkiD').trim();
+export const UNOROUTER_API_KEY = (process.env.UNOROUTER_API_KEY || '').trim();
 
-export const DEFAULT_DISCORD_CLIENT_ID = '1558375997416677426';
-export const DEFAULT_DISCORD_CLIENT_SECRET = 'KYXTuhr666qbvi8OVKU-qyrZ-ZMpLbx0';
+export const DEFAULT_DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1558375997416677426';
+export const DEFAULT_DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
 
 // Mật khẩu Admin mặc định & Discord User ID duy nhất có quyền Admin Pool
 export const DEFAULT_ADMIN_SECRET = 'slk-admin';

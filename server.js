@@ -56,7 +56,7 @@ process.on('exit', (code) => {
 
 const PORT = process.env.PORT || 3000;
 const UPSTREAM_BASE_URL = (process.env.UPSTREAM_BASE_URL || 'https://api.hcnsec.cn/v1').replace(/\/+$/, '');
-const UPSTREAM_API_KEY = (process.env.UPSTREAM_API_KEY || 'sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5KRiS4MGl').trim();
+const UPSTREAM_API_KEY = (process.env.UPSTREAM_API_KEY || '').trim();
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',

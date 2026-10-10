@@ -20,6 +20,7 @@ import {
   dbSyncGatePoolToSupabase,
   dbDeleteGateFromSupabase,
 } from '../_supabase.js';
+import { topUpUserBalance, getWalletInfo, formatVnd } from '../_wallet.js';
 
 export const config = {
   runtime: 'edge',
@@ -197,6 +198,49 @@ export default async function handler(request) {
         await dbSyncGatePoolToSupabase(getRawPoolList());
         return new Response(
           JSON.stringify(buildPoolPayload()),
+          { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
+      }
+
+      if (action === 'topup_balance') {
+        const targetUid = String(body.discordUserId || body.targetDiscordId || '').trim();
+        const amountVnd = Math.floor(Number(body.amountVnd || body.amount || 0));
+
+        if (!targetUid) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Thiếu Discord User ID cần nạp tiền.' }),
+            { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+          );
+        }
+        if (amountVnd <= 0) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Số tiền nạp không hợp lệ (phải lớn hơn 0).' }),
+            { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+          );
+        }
+
+        const topup = await topUpUserBalance(targetUid, amountVnd, body.note || 'Admin nạp tiền vào ví');
+        if (!topup.success) {
+          return new Response(
+            JSON.stringify({ success: false, error: topup.error }),
+            { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+          );
+        }
+
+        const wallet = await getWalletInfo(targetUid);
+        return new Response(
+          JSON.stringify(buildPoolPayload({
+            topup: {
+              ...topup,
+              balanceLabel: formatVnd(topup.balanceVnd),
+            },
+            wallet: {
+              discordUserId: targetUid,
+              balanceVnd: wallet.balanceVnd,
+              balanceLabel: formatVnd(wallet.balanceVnd),
+              transactions: wallet.transactions.slice(0, 20),
+            },
+          })),
           { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
         );
       }

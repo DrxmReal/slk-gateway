@@ -1,3 +1,5 @@
+import { chargeUserForRequest, getRequestFeeVnd } from './_wallet.js';
+
 export const DEFAULT_UPSTREAM_URL = 'https://api.hcnsec.cn/v1';
 export const DEFAULT_UPSTREAM_KEY = 'sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5KRiS4MGl';
 
@@ -8,18 +10,18 @@ export const DEFAULT_DISCORD_CLIENT_SECRET = 'KYXTuhr666qbvi8OVKU-qyrZ-ZMpLbx0';
 export const DEFAULT_ADMIN_SECRET = 'slk-admin';
 export const OWNER_ADMIN_DISCORD_ID = '1207080545159487498';
 
-// Danh sách các model 100% FREE (0 ₫) được phép sử dụng trên SLK Gateway
+// Danh sách model ĐƯỢC PHÉP sử dụng trên Gateway (chỉ 4 model theo bảng giá §)
 export const FREE_MODELS = [
   'auto',
-  'DeepSeek-V4-Flash',
-  'glm-5.3-flash',
-  'kimi-k3',
+  'glm-5.3',
   'longcat-2.5',
-  'MiMo-V2.6-Flash',
   'sensenova-6.8-flash-lite',
 ];
 
 export const ALL_MODELS = FREE_MODELS;
+
+// Model mặc định khi client không chỉ định (hoặc chỉ định model không hợp lệ)
+export const DEFAULT_MODEL = 'auto';
 
 export const MODELS_CATALOG = [
   {
@@ -29,89 +31,43 @@ export const MODELS_CATALOG = [
     owned_by: 'TrustedRouter',
     provider: 'TrustedRouter',
     provider_code: 'router',
-    free: true,
-    price_type: 'free',
-    price_label: 'Miễn phí (0 ₫)',
-    price_input: '0 ₫ / yêu cầu',
+    free: false,
+    price_type: 'request',
+    price_label: '1.000 ₫ / yêu cầu',
+    price_input: '1.000 ₫ / yêu cầu',
     price_output: '',
-    tags: ['Reasoning', 'Tools', 'vision', 'free', '1m'],
-    description: 'Định tuyến thông minh tự động chọn mô hình Free có chất lượng tốt nhất, tốc độ nhanh nhất và ổn định nhất.',
-    supported_endpoint_types: ['openai', 'image-generation', 'anthropic', 'gemini'],
+    tags: ['Reasoning', 'Tools', 'vision', '1m'],
+    description: 'Tự động định tuyến thông minh: hệ thống tự chọn model free chất lượng tốt nhất, nhanh nhất và ổn định nhất tại thời điểm gọi.',
+    supported_endpoint_types: ['openai', 'anthropic', 'gemini'],
     status: {
-      uptime: 96.35,
-      latency: '29.33s',
-      tps: '88.8t/s',
+      uptime: 96.55,
+      latency: '29.61s',
+      tps: '90.4t/s',
       state: 'online',
-      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1]
+      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
     }
   },
   {
-    id: 'DeepSeek-V4-Flash',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'DeepSeek',
-    provider: 'DeepSeek',
-    provider_code: 'deepseek',
-    free: true,
-    price_type: 'free',
-    price_label: 'Miễn phí (0 ₫)',
-    price_input: '0 ₫ / yêu cầu',
-    price_output: '',
-    tags: ['Reasoning', 'Tools', '1m', 'free'],
-    description: 'DeepSeek-V4-Flash dựa trên kiến trúc MoE (284B tham số, kích hoạt 13B), hỗ trợ ngữ cảnh lên tới 1M token (Miễn phí 100%).',
-    supported_endpoint_types: ['openai', 'anthropic'],
-    status: {
-      uptime: 98.87,
-      latency: '46.66s',
-      tps: '28.5t/s',
-      state: 'online',
-      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1]
-    }
-  },
-  {
-    id: 'glm-5.3-flash',
+    id: 'glm-5.3',
     object: 'model',
     created: 1626777600,
     owned_by: 'Zhipu GLM',
     provider: 'Zhipu GLM',
     provider_code: 'zhipu',
-    free: true,
-    price_type: 'free',
-    price_label: 'Miễn phí (0 ₫)',
-    price_input: '0 ₫ / yêu cầu',
+    free: false,
+    price_type: 'request',
+    price_label: '1.000 ₫ / yêu cầu',
+    price_input: '1.000 ₫ / yêu cầu',
     price_output: '',
-    tags: ['Reasoning', 'Tools', '1m', 'free'],
-    description: 'GLM-5.3-Flash (320B-A10B MoE) hỗ trợ đa phương thức, ngữ cảnh 1M token tốc độ cao (Miễn phí 100%).',
+    tags: ['Reasoning', 'Tools', '1m'],
+    description: 'GLM-5.3 là mô hình ngôn ngữ lớn do Zhipu AI (智谱) phát hành chính thức ngày 14/08/2026, kế thừa nền tảng GLM và được cải thiện mạnh nhờ huấn luyện Scaling, nâng cao khả năng lập trình.',
     supported_endpoint_types: ['openai', 'anthropic'],
     status: {
-      uptime: 89.25,
-      latency: '64.67s',
-      tps: '35.6t/s',
+      uptime: 97.46,
+      latency: '70.78s',
+      tps: '23.9t/s',
       state: 'online',
-      bars: [1,1,1,2,1,1,1,1,1,1,0,2,1,1,1,0,1,1,1,2,1,1,1,1]
-    }
-  },
-  {
-    id: 'kimi-k3',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'Moonshot',
-    provider: 'Moonshot',
-    provider_code: 'moonshot',
-    free: true,
-    price_type: 'free',
-    price_label: 'Miễn phí (0 ₫)',
-    price_input: '0 ₫ / yêu cầu',
-    price_output: '',
-    tags: ['Reasoning', 'Tools', 'vision', 'free'],
-    description: 'Kimi K3 của Moonshot AI là mô hình đa phương thức 2.8T tham số sử dụng kiến trúc chú ý tuyến tính KDA (Miễn phí 100%).',
-    supported_endpoint_types: ['openai', 'anthropic'],
-    status: {
-      uptime: 68.16,
-      latency: '37.84s',
-      tps: '47.1t/s',
-      state: 'degraded',
-      bars: [0,0,0,2,1,2,2,0,0,2,2,1,1,1,0,0,1,2,1,1,1,1,1,1]
+      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1]
     }
   },
   {
@@ -121,43 +77,20 @@ export const MODELS_CATALOG = [
     owned_by: 'LongCat',
     provider: 'LongCat',
     provider_code: 'longcat',
-    free: true,
-    price_type: 'free',
-    price_label: 'Miễn phí (0 ₫)',
-    price_input: '0 ₫ / yêu cầu',
+    free: false,
+    price_type: 'request',
+    price_label: '500 ₫ / yêu cầu',
+    price_input: '500 ₫ / yêu cầu',
     price_output: '',
-    tags: ['Reasoning', 'Tools', 'free'],
-    description: 'LongCat 2.5 Preview của Meituan tiếp tục kiến trúc MoE 1.6T tham số, tốc độ cao và hoàn toàn miễn phí (0 ₫ / yêu cầu).',
+    tags: ['Reasoning', 'Tools'],
+    description: 'LongCat-2.5-Preview là bản xem trước của dòng LongCat do Meituan (美团) phát hành ngày 25/09/2026, tiếp nối kiến trúc MoE hỗn hợp với tổng 1,6 nghìn tỷ tham số, tốc độ cao.',
     supported_endpoint_types: ['openai', 'anthropic'],
     status: {
-      uptime: 99.88,
-      latency: '38.43s',
-      tps: '71.2t/s',
+      uptime: 99.78,
+      latency: '45.70s',
+      tps: '70.6t/s',
       state: 'online',
       bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-    }
-  },
-  {
-    id: 'MiMo-V2.6-Flash',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'Xiaomi MiMo',
-    provider: 'Xiaomi MiMo',
-    provider_code: 'mimo',
-    free: true,
-    price_type: 'free',
-    price_label: 'Miễn phí (0 ₫)',
-    price_input: '0 ₫ / yêu cầu',
-    price_output: '',
-    tags: ['Reasoning', 'Tools', 'open', 'free'],
-    description: 'MiMo V2.6 Flash của Xiaomi là mô hình suy luận đa phương thức mã nguồn mở MoE 309B tham số (0 ₫ / yêu cầu).',
-    supported_endpoint_types: ['openai'],
-    status: {
-      uptime: 79.72,
-      latency: '98.75s',
-      tps: '18.6t/s',
-      state: 'degraded',
-      bars: [1,2,2,1,0,1,1,2,1,1,1,0,0,1,2,2,1,1,1,1,0,1,1,1]
     }
   },
   {
@@ -167,18 +100,18 @@ export const MODELS_CATALOG = [
     owned_by: 'SenseNova',
     provider: 'SenseNova',
     provider_code: 'sensenova',
-    free: true,
-    price_type: 'free',
-    price_label: 'Miễn phí (0 ₫)',
-    price_input: '0 ₫ / yêu cầu',
+    free: false,
+    price_type: 'request',
+    price_label: '500 ₫ / yêu cầu',
+    price_input: '500 ₫ / yêu cầu',
     price_output: '',
-    tags: ['Tools', 'free'],
-    description: 'SenseNova 6.8 Flash Lite của SenseTime phản hồi cực nhanh (~3.3s), ổn định cao và hoàn toàn miễn phí (0 ₫ / yêu cầu).',
+    tags: ['Tools'],
+    description: 'sensenova-6.8-flash-lite là mô hình đa phương thức nhẹ, phản hồi cực nhanh do SenseTime (商汤) phát hành ngày 11/08/2026, theo triết lý "AI đặc nhiệm: chỉ cần đưa ra mục tiêu".',
     supported_endpoint_types: ['openai'],
     status: {
-      uptime: 97.80,
-      latency: '3.38s',
-      tps: '65.4t/s',
+      uptime: 99.92,
+      latency: '17.90s',
+      tps: '80.5t/s',
       state: 'online',
       bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1]
     }
@@ -484,6 +417,12 @@ export function mergeModelsWithCatalog() {
   return MODELS_CATALOG;
 }
 
+// Header HTTP chỉ nhận ký tự ByteString (latin1) -> mã hóa ký tự ngoài latin1
+// (VD: tên Gate "Master Gate #1 (Mặc định)" có chữ "ậ" sẽ làm fetch/undici throw lỗi)
+export function toHeaderSafeValue(value) {
+  return String(value ?? '').replace(/[^\x00-\xff]/g, ch => encodeURIComponent(ch));
+}
+
 export async function proxyRequest(request, targetPath) {
   if (request.method === 'OPTIONS') {
     return handleOptions();
@@ -509,9 +448,15 @@ export async function proxyRequest(request, targetPath) {
     );
   }
 
+  // Xác định Discord User ID từ API Key (nếu là key của user -> sẽ bị trừ tiền ví)
+  const authHeaderValue = request.headers.get('authorization') || '';
+  const bearerToken = authHeaderValue.replace(/^Bearer\s+/i, '').trim();
+  const customKeyHeader = (request.headers.get('x-custom-key') || '').trim();
+  const verifiedUid = await extractVerifiedDiscordUserId(bearerToken || customKeyHeader);
+
   const cleanPath = (targetPath || '').replace(/^\/+/, '');
 
-  // Nếu gọi danh sách /v1/models -> Chỉ trả về các model FREE kèm thông tin Status
+  // Nếu gọi danh sách /v1/models -> Chỉ trả về các model được phép kèm thông tin Status (miễn phí)
   if (cleanPath === 'models' && request.method === 'GET') {
     return new Response(
       JSON.stringify({
@@ -536,27 +481,79 @@ export async function proxyRequest(request, targetPath) {
   searchParams.delete('path');
   const queryStr = searchParams.toString();
 
+  // Đọc & kiểm tra body: chỉ cho phép các model trong FREE_MODELS
   let bodyPayload = null;
+  let requestModel = '';
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     try {
       const rawBody = await request.text();
-      if (rawBody && cleanPath.includes('chat/completions')) {
-        try {
-          const parsed = JSON.parse(rawBody);
-          // Chặn các model trả phí: chỉ cho phép các model trong FREE_MODELS
-          if (!parsed.model || !FREE_MODELS.includes(parsed.model)) {
-            parsed.model = 'DeepSeek-V4-Flash';
+      if (rawBody) {
+        if (cleanPath.includes('chat/completions')) {
+          let parsed;
+          try {
+            parsed = JSON.parse(rawBody);
+          } catch {
+            return new Response(
+              JSON.stringify({
+                error: {
+                  message: 'Body JSON không hợp lệ cho endpoint chat/completions.',
+                  type: 'invalid_request_error',
+                  code: 'invalid_json'
+                }
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+            );
+          }
+
+          requestModel = String(parsed.model || '').trim();
+          if (!FREE_MODELS.includes(requestModel)) {
+            return new Response(
+              JSON.stringify({
+                error: {
+                  message: 'Model "' + (requestModel || '(không có)') + '" không được hỗ trợ trên Gateway này. Các model hợp lệ: ' + FREE_MODELS.join(', ') + '.',
+                  type: 'invalid_request_error',
+                  code: 'model_not_allowed',
+                  allowed_models: FREE_MODELS
+                }
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+            );
           }
           bodyPayload = JSON.stringify(parsed);
-        } catch {
+        } else {
           bodyPayload = rawBody;
+          try {
+            const parsed = JSON.parse(rawBody);
+            requestModel = String(parsed?.model || '').trim();
+          } catch {
+            requestModel = '';
+          }
         }
-      } else {
-        bodyPayload = rawBody;
       }
     } catch {
       // Body empty or unreadable
     }
+  }
+
+  // TRỪ PHÍ VÍ trước khi proxy (chỉ áp dụng cho API Key của user Discord)
+  let chargeInfo = null;
+  if (verifiedUid) {
+    const charge = await chargeUserForRequest(verifiedUid, requestModel || DEFAULT_MODEL);
+    if (!charge.success) {
+      return new Response(
+        JSON.stringify({
+          error: {
+            message: charge.error,
+            type: 'billing_error',
+            code: charge.code || 'billing_error',
+            balance_vnd: charge.balanceVnd ?? null,
+            required_vnd: charge.feeVnd ?? null
+          }
+        }),
+        { status: 402, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
+    chargeInfo = charge;
   }
 
   // Lấy danh sách Gates theo Round-Robin và tự động Failover nếu Gate gặp lỗi 401/402/429/5xx
@@ -598,7 +595,11 @@ export async function proxyRequest(request, targetPath) {
       for (const [key, value] of Object.entries(corsHeaders)) {
         resHeaders.set(key, value);
       }
-      resHeaders.set('X-SLK-Gate', gate.name);
+      resHeaders.set('X-SLK-Gate', toHeaderSafeValue(gate.name));
+      if (chargeInfo) {
+        resHeaders.set('X-SLK-Fee-Vnd', String(chargeInfo.feeVnd));
+        resHeaders.set('X-SLK-Balance-Vnd', String(chargeInfo.balanceVnd));
+      }
 
       return new Response(upstreamRes.body, {
         status: upstreamRes.status,

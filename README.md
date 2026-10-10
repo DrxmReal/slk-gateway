@@ -4,7 +4,8 @@ Hệ thống **AI API Gateway** mạnh mẽ, tốc độ cao, hoàn toàn tươn
 
 Hệ thống kết nối trực tiếp với Upstream API:
 - **Upstream Base URL**: `https://api.hcnsec.cn/v1`
-- **Mô hình hỗ trợ**: `auto`, `DeepSeek-V4-Flash`, `DeepSeek-V4-Pro`, `DeepSeek-V4.1-Flash`, `glm-5.3`, `glm-5.3-flash`, `kimi-k3`, `longcat-2.5`, `Qwen3.8-27B`,...
+- **Mô hình hỗ trợ**: `auto`, `glm-5.3`, `longcat-2.5`, `sensenova-6.8-flash-lite`
+- **Tiền tệ**: Việt Nam Đồng (₫) — mỗi tài khoản Discord được tặng **100.000 ₫** vào ví khi đăng nhập lần đầu, mỗi request bị trừ phí cố định (500 ₫ – 1.000 ₫/lượt tuỳ model)
 
 ---
 
@@ -16,14 +17,19 @@ Hệ thống kết nối trực tiếp với Upstream API:
    - `ANY /v1/*` (Proxy tự động cho bất kỳ endpoint nào khác như embeddings, audio,...)
 2. **Hỗ Trợ SSE Streaming (Server-Sent Events)**:
    - Truyền tải ký tự mượt mà từng từ một thời gian thực (`stream: true`), không độ trễ.
-3. **Giao Diện Web Hiện Đại (All-In-One UI)**:
+3. **Ví Tiền Theo Từng User (VND)**:
+   - Mỗi tài khoản Discord có ví riêng, khởi tạo **100.000 ₫** khi đăng nhập lần đầu.
+   - Mỗi request `/v1/chat/completions` bị **trừ phí cố định**: `auto` & `glm-5.3`: 1.000 ₫/lượt • `longcat-2.5` & `sensenova-6.8-flash-lite`: 500 ₫/lượt.
+   - Hết tiền → API trả về **HTTP 402** kèm thông báo số dư. Xem số dư & lịch sử tại `GET /api/wallet`.
+   - Admin nạp tiền cho user tại tab **Admin Pool → Nạp Tiền Vào Ví User**.
+4. **Giao Diện Web Hiện Đại (All-In-One UI)**:
    - **💬 AI Chat**: Giao diện trò chuyện trực tiếp với AI (Dark Mode, hỗ trợ Markdown, bảng, code syntax highlighting, nút sao chép code).
    - **📄 API Docs**: Tự động sinh mã nguồn tích hợp (cURL, Python, Node.js) và hướng dẫn cấu hình cho **NextChat**, **Chatbox**, **LibreChat**, **Cursor**.
    - **🧪 API Tester**: Bộ công cụ kiểm thử gửi request và xem kết quả trực tiếp trên trình duyệt.
    - **🧠 Models Explorer**: Liệt kê chi tiết các mô hình AI có sẵn từ upstream API.
-4. **Bảo Mật & Linh Hoạt**:
+5. **Bảo Mật & Linh Hoạt**:
    - Giữ bí mật Upstream API Key phía máy chủ (Server/Edge Environment).
-   - Tùy chọn đặt mật khẩu bảo vệ (`CUSTOM_ACCESS_KEY`) để chỉ những ai có khóa mới được sử dụng Gateway.
+   - Bắt buộc đăng nhập **Discord OAuth2** để tạo API Key sử dụng Gateway.
    - Hỗ trợ đầy đủ **CORS** (`Access-Control-Allow-Origin: *`) cho phép gọi từ bất kỳ website hay ứng dụng client-side nào.
 
 ---
@@ -84,8 +90,15 @@ Tại trang quản trị Vercel > Dự án của bạn > **Settings** > **Enviro
 | Tên biến (Key) | Giá trị mặc định | Giải thích |
 |---|---|---|
 | `UPSTREAM_BASE_URL` | `https://api.hcnsec.cn/v1` | URL API gốc |
-| `UPSTREAM_API_KEY` | `sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5KRiS4MGl` | Khóa API gốc |
-| `CUSTOM_ACCESS_KEY` | *(Để trống là công khai)* | Mật khẩu truy cập Gateway (nếu muốn bảo vệ API của bạn khỏi người lạ) |
+| `UPSTREAM_API_KEY` | *(xem `.env.example`)* | Khóa API gốc |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | *(xem `.env.example`)* | Cấu hình Discord OAuth2 |
+| `DEFAULT_USER_BALANCE_VND` | `100000` | Số dư tặng mỗi user mới (₫) |
+| `CUSTOM_ACCESS_KEY` | *(Để trống)* | Mật khẩu truy cập Gateway (nếu muốn bảo vệ API của bạn khỏi người lạ) |
+| `ADMIN_SECRET` | `slk-admin` | Mật khẩu Admin Pool (hoặc dùng đúng Discord ID owner) |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | *(xem `.env.example`)* | Database Supabase (users, API keys, gate pool, ví tiền) |
+
+> 💳 **Ví tiền (VND)**: số dư và lịch sử giao dịch được lưu trong Supabase (bảng `slk_users.balance_vnd` + `slk_transactions`). Nếu chưa chạy schema mới, hệ thống tự động chạy chế độ bộ nhớ (số dư đúng trong phiên làm việc của server).
+> **Bắt buộc chạy lại file `supabase_schema.sql`** trong Supabase SQL Editor để lưu ví tiền bền vững và dùng RPC trừ/cộng tiền atomic.
 
 ---
 

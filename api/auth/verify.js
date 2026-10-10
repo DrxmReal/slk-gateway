@@ -9,6 +9,7 @@ import {
   dbGetUserApiKeys,
   getSupabaseConfig,
 } from '../_supabase.js';
+import { getWalletInfo, formatVnd } from '../_wallet.js';
 
 export const config = {
   runtime: 'edge',
@@ -101,6 +102,7 @@ export default async function handler(request) {
 
     await dbUpsertDiscordUser(userProfile);
     const userKeys = await dbGetUserApiKeys(discordUser.id);
+    const wallet = await getWalletInfo(discordUser.id);
 
     return new Response(
       JSON.stringify({
@@ -108,6 +110,10 @@ export default async function handler(request) {
         user: userProfile,
         apiKey: apiKey,
         keys: userKeys,
+        wallet: {
+          balanceVnd: wallet.balanceVnd,
+          balanceLabel: formatVnd(wallet.balanceVnd),
+        },
         supabaseConfigured: getSupabaseConfig().configured,
       }),
       {

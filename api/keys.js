@@ -3,6 +3,8 @@ import {
   checkAuth,
   extractVerifiedDiscordUserId,
   generateCustomDiscordApiKey,
+  isAllowedAdminDiscordId,
+  checkAdminSecret,
 } from './_utils.js';
 import {
   dbGetUserApiKeys,
@@ -14,6 +16,13 @@ import {
 export const config = {
   runtime: 'edge',
 };
+
+// Chỉ cho phép thao tác hộ user khác khi có quyền Admin
+function canActOnBehalfOfUser(verifiedUid, targetUid, headerSecret = '') {
+  if (!targetUid || !verifiedUid) return true;
+  if (targetUid === verifiedUid) return true;
+  return isAllowedAdminDiscordId(verifiedUid) || checkAdminSecret(headerSecret, verifiedUid);
+}
 
 export default async function handler(request) {
   if (request.method === 'OPTIONS') {
@@ -31,10 +40,23 @@ export default async function handler(request) {
   const authHeader = request.headers.get('authorization') || '';
   const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
   const verifiedDiscordId = await extractVerifiedDiscordUserId(bearerToken);
+  const headerSecret =
+    request.headers.get('x-admin-secret') ||
+    new URL(request.url).searchParams.get('secret') ||
+    '';
 
   if (request.method === 'GET') {
     const url = new URL(request.url);
-    const targetUserId = verifiedDiscordId || url.searchParams.get('discordUserId') || '';
+    const requestedUserId = url.searchParams.get('discordUserId') || '';
+    const targetUserId = verifiedDiscordId || requestedUserId;
+
+    if (requestedUserId && !canActOnBehalfOfUser(verifiedDiscordId, requestedUserId, headerSecret)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Forbidden: Bạn chỉ được xem API Key của chính mình.' }),
+        { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
+
     if (!targetUserId) {
       return new Response(
         JSON.stringify({ success: false, error: 'Thiếu Discord User ID.' }),
@@ -57,8 +79,16 @@ export default async function handler(request) {
   if (request.method === 'POST') {
     try {
       const body = await request.json();
-      const discordUserId = verifiedDiscordId || String(body.discordUserId || '').trim();
+      const requestedUserId = String(body.discordUserId || '').trim();
+      const discordUserId = verifiedDiscordId || requestedUserId;
       const keyName = String(body.name || 'API Key mới').trim();
+
+      if (requestedUserId && !canActOnBehalfOfUser(verifiedDiscordId, requestedUserId, headerSecret)) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Forbidden: Bạn chỉ được tạo API Key cho chính mình.' }),
+          { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
+      }
 
       if (!discordUserId) {
         return new Response(
@@ -104,6 +134,14 @@ export default async function handler(request) {
           keyId = body.id || '';
           discordUserId = discordUserId || body.discordUserId || '';
         } catch {}
+      }
+
+      const requestedUserId = url.searchParams.get('discordUserId') || '';
+      if (requestedUserId && !canActOnBehalfOfUser(verifiedDiscordId, requestedUserId, headerSecret)) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Forbidden: Bạn chỉ được xóa API Key của chính mình.' }),
+          { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
       }
 
       if (!discordUserId || !keyId) {

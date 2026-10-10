@@ -20,6 +20,157 @@ let userApiKeys = [];
 let adminSecret = localStorage.getItem('slk_admin_secret') || '';
 let adminGatesList = [];
 const OWNER_ADMIN_DISCORD_ID = '1207080545159487498';
+let adminWalletTransactions = [];
+
+// ---- Ví tiền (VND): mỗi user có 100.000 ₫, trừ phí cố định theo mỗi request ----
+const GATEWAY_MODELS = ['auto', 'glm-5.3', 'longcat-2.5', 'sensenova-6.8-flash-lite'];
+const MODEL_FEE_VND = {
+  'auto': 1000,
+  'glm-5.3': 1000,
+  'longcat-2.5': 500,
+  'sensenova-6.8-flash-lite': 500,
+};
+const DEFAULT_MODEL_ID = 'auto';
+let walletBalanceVnd = null;
+let walletTransactions = [];
+let walletPricing = {};
+
+function formatVnd(amount) {
+  const num = Math.round(Number(amount) || 0);
+  return `${num.toLocaleString('vi-VN')} ₫`;
+}
+
+function getModelFeeVnd(modelId) {
+  const fee = walletPricing[modelId] ?? MODEL_FEE_VND[modelId];
+  const parsed = Number(fee);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1000;
+}
+
+async function loadWallet() {
+  if (!clientAccessToken || !discordUser?.id) return;
+  try {
+    const res = await fetch('/api/wallet', {
+      headers: { Authorization: `Bearer ${clientAccessToken}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.success) return;
+    walletBalanceVnd = Number(data.balanceVnd || 0);
+    walletTransactions = Array.isArray(data.transactions) ? data.transactions : [];
+    walletPricing = data.pricing || {};
+    renderWalletUI();
+  } catch {}
+}
+
+function renderWalletUI() {
+  const badge = document.getElementById('user-balance-badge');
+  if (badge && walletBalanceVnd !== null) {
+    badge.textContent = formatVnd(walletBalanceVnd);
+    badge.classList.toggle('text-rose-400', walletBalanceVnd < 1000);
+    badge.classList.toggle('text-emerald-400', walletBalanceVnd >= 1000);
+  }
+
+  const balanceValue = document.getElementById('wallet-balance-value');
+  if (balanceValue && walletBalanceVnd !== null) {
+    balanceValue.textContent = formatVnd(walletBalanceVnd);
+  }
+
+  const requestsLeft = document.getElementById('wallet-requests-left');
+  if (requestsLeft && walletBalanceVnd !== null) {
+    requestsLeft.textContent = `≈ ${Math.floor(walletBalanceVnd / 1000)} lượt với model 1.000 ₫/lượt`;
+  }
+
+  const tbody = document.getElementById('wallet-transactions-body');
+  if (tbody) {
+    if (!walletTransactions.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="px-3 py-6 text-center text-slate-500 text-xs">Chưa có giao dịch nào.</td></tr>`;
+    } else {
+      tbody.innerHTML = walletTransactions.slice(0, 20).map(tx => {
+        const isTopup = tx.type === 'topup';
+        const sign = isTopup ? '+' : '-';
+        const color = isTopup ? 'text-emerald-400' : 'text-rose-400';
+        const time = tx.createdAt ? new Date(tx.createdAt).toLocaleString('vi-VN') : '';
+        return `<tr class="border-t border-slate-800/60">
+          <td class="px-3 py-2 text-slate-300 text-xs whitespace-nowrap">${escapeHtml(time)}</td>
+          <td class="px-3 py-2 text-xs ${color} font-mono font-semibold whitespace-nowrap">${sign}${formatVnd(tx.amountVnd)}</td>
+          <td class="px-3 py-2 text-slate-400 text-xs font-mono truncate max-w-[140px]">${escapeHtml(tx.model || (isTopup ? 'Nạp tiền' : 'API'))}</td>
+          <td class="px-3 py-2 text-slate-300 text-xs font-mono whitespace-nowrap">${tx.balanceAfterVnd !== null && tx.balanceAfterVnd !== undefined ? formatVnd(tx.balanceAfterVnd) : '—'}</td>
+        </tr>`;
+      }).join('');
+    }
+  }
+}
+
+// ---- Nạp tiền vào ví (Admin) ----
+async function handleTopUpBalance(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const uidInput = document.getElementById('admin-topup-discord-id');
+  const amountInput = document.getElementById('admin-topup-amount');
+  const resultEl = document.getElementById('admin-topup-result');
+
+  const targetUid = (uidInput?.value || '').trim();
+  const amountVnd = Math.floor(Number(amountInput?.value || 0));
+
+  if (!targetUid || amountVnd <= 0) {
+    if (resultEl) {
+      resultEl.textContent = 'Vui lòng nhập Discord User ID và số tiền hợp lệ.';
+      resultEl.className = 'text-xs text-rose-400';
+    }
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/pool', {
+      method: 'POST',
+      headers: getAdminRequestHeaders(),
+      body: JSON.stringify({
+        action: 'topup_balance',
+        discordUserId: targetUid,
+        amountVnd,
+        adminSecret: adminSecret || 'slk-admin',
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (resultEl) {
+        resultEl.innerHTML = `✅ Đã nạp <strong>${formatVnd(amountVnd)}</strong> cho <code class="font-mono">${escapeHtml(targetUid)}</code>. Số dư mới: <strong>${formatVnd(data.topup?.balanceVnd || 0)}</strong>`;
+        resultEl.className = 'text-xs text-emerald-400';
+      }
+      if (data.wallet) renderAdminWalletResult(data.wallet);
+      if (isCurrentUserOwnerAdmin()) loadWallet();
+    } else {
+      if (resultEl) {
+        resultEl.textContent = `❌ ${data.error || 'Nạp tiền thất bại.'}`;
+        resultEl.className = 'text-xs text-rose-400';
+      }
+    }
+  } catch (err) {
+    if (resultEl) {
+      resultEl.textContent = `❌ Lỗi: ${err.message}`;
+      resultEl.className = 'text-xs text-rose-400';
+    }
+  }
+}
+
+function renderAdminWalletResult(wallet) {
+  const box = document.getElementById('admin-topup-wallet-result');
+  if (!box || !wallet) return;
+  box.classList.remove('hidden');
+  const txs = (wallet.transactions || []).slice(0, 5);
+  box.innerHTML = `
+    <div class="text-xs text-slate-300 mb-2">
+      Số dư hiện tại của <code class="font-mono text-indigo-300">${escapeHtml(wallet.discordUserId || '')}</code>:
+      <strong class="text-emerald-400 font-mono">${formatVnd(wallet.balanceVnd || 0)}</strong>
+    </div>
+    ${txs.length ? `<div class="space-y-1">${txs.map(tx => `
+      <div class="flex items-center justify-between text-[11px] font-mono">
+        <span class="text-slate-500">${escapeHtml(tx.createdAt ? new Date(tx.createdAt).toLocaleString('vi-VN') : '')}</span>
+        <span class="${tx.type === 'topup' ? 'text-emerald-400' : 'text-rose-400'}">${tx.type === 'topup' ? '+' : '-'}${formatVnd(tx.amountVnd)}</span>
+        <span class="text-slate-400 truncate max-w-[120px]">${escapeHtml(tx.model || tx.note || '')}</span>
+      </div>`).join('')}</div>` : ''}
+  `;
+  if (window.lucide) lucide.createIcons();
+}
 
 function isCurrentUserOwnerAdmin() {
   return Boolean(discordUser && String(discordUser.id).trim() === OWNER_ADMIN_DISCORD_ID);
@@ -290,6 +441,7 @@ function updateAuthUI() {
     renderApiKeysTable();
     fetchUserApiKeysFromDatabase();
     checkGatewayHealth();
+    loadWallet();
     fetchAvailableModels();
   } else {
     userApiKeys = [];
@@ -335,6 +487,8 @@ function logoutDiscord() {
   discordUser = null;
   clientAccessToken = '';
   userApiKeys = [];
+  walletBalanceVnd = null;
+  walletTransactions = [];
   updateAuthUI();
 }
 
@@ -451,9 +605,9 @@ function copyRawText(text, msg) {
 
 function copyKeyBundle(token) {
   const baseUrl = getBaseUrl();
-  const bundle = `OpenAI Base URL: ${baseUrl}\nAPI Key: ${token}\nFree Models: DeepSeek-V4-Flash, auto, glm-5.3-flash, kimi-k3, longcat-2.5, MiMo-V2.6-Flash, sensenova-6.8-flash-lite`;
+  const bundle = `OpenAI Base URL: ${baseUrl}\nAPI Key: ${token}\nModels: ${GATEWAY_MODELS.join(', ')}`;
   navigator.clipboard.writeText(bundle).then(() => {
-    alert(`Đã sao chép trọn bộ cấu hình OpenAI /v1 (Free Models):\n\n${bundle}`);
+    alert(`Đã sao chép trọn bộ cấu hình OpenAI /v1:\n\n${bundle}`);
   });
 }
 
@@ -491,6 +645,11 @@ function updateGatewayUrls() {
   const origin = window.location.origin;
   const activeKey = (userApiKeys[0]?.token) || clientAccessToken || 'sk-nx-your-key';
 
+  const modelsEl = document.getElementById('free-models-string');
+  if (modelsEl) modelsEl.textContent = GATEWAY_MODELS.join(',');
+  const modelsBadge = document.getElementById('free-models-count-badge');
+  if (modelsBadge) modelsBadge.textContent = `${GATEWAY_MODELS.length} models`;
+
   const urlDisplay = document.getElementById('gateway-base-url');
   if (urlDisplay) urlDisplay.textContent = baseUrl;
 
@@ -512,7 +671,7 @@ function updateGatewayUrls() {
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer ${activeKey}" \\
   -d '{
-    "model": "DeepSeek-V4-Flash",
+    "model": "auto",
     "messages": [
       { "role": "user", "content": "Hello!" }
     ]
@@ -529,7 +688,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="DeepSeek-V4-Flash",  # Free: DeepSeek-V4-Flash, auto, glm-5.3-flash, kimi-k3, longcat-2.5, sensenova-6.8-flash-lite
+    model="auto",  # Models: auto, glm-5.3, longcat-2.5, sensenova-6.8-flash-lite (trả phí cố định theo lượt, đơn vị ₫)
     messages=[
         {"role": "user", "content": "Xin chào!"}
     ],
@@ -550,7 +709,7 @@ const openai = new OpenAI({
 });
 
 const stream = await openai.chat.completions.create({
-  model: 'DeepSeek-V4-Flash',
+  model: 'auto',
   messages: [{ role: 'user', content: 'Xin chào!' }],
   stream: true,
 });
@@ -629,7 +788,7 @@ async function checkGatewayHealth() {
       const data = await res.json();
       const count = data.total_models || 7;
       const activeGates = data.active_gates || 1;
-      if (statusText) statusText.textContent = `${count} Free Models • ${activeGates} Gate${activeGates > 1 ? 's' : ''}`;
+      if (statusText) statusText.textContent = `${count} Models • ${activeGates} Gate${activeGates > 1 ? 's' : ''}`;
       if (gatesBadge) gatesBadge.textContent = activeGates;
       if (statusPill) statusPill.className = 'hidden lg:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-400 whitespace-nowrap transition-all';
     } else {
@@ -668,14 +827,14 @@ async function fetchAvailableModels() {
         const opt = document.createElement('option');
         opt.value = m.id;
         const uptime = m.status?.uptime ? `${m.status.uptime}%` : 'Online';
-        opt.textContent = `${m.id} (${uptime} • 0₫ Free)`;
+        opt.textContent = `${m.id} (${uptime} • ${formatVnd(getModelFeeVnd(m.id))}/lượt)`;
         select.appendChild(opt);
       });
 
       if (currentSelected && availableModels.some(m => m.id === currentSelected)) {
         select.value = currentSelected;
       } else {
-        select.value = 'DeepSeek-V4-Flash';
+        select.value = DEFAULT_MODEL_ID;
       }
     }
 
@@ -707,7 +866,7 @@ function updateModelStatusSummary() {
     }, 0) / total
   ).toFixed(1);
 
-  if (totalEl) totalEl.textContent = `${total} Free Models`;
+  if (totalEl) totalEl.textContent = `${total} Models`;
   if (healthyEl) healthyEl.textContent = `${healthyCount} / ${total} Online`;
   if (avgUptimeEl) avgUptimeEl.textContent = `${avgUptime}%`;
   if (avgTpsEl) avgTpsEl.textContent = `${avgTps} t/s`;
@@ -807,8 +966,8 @@ function renderModelsStatusGrid() {
     else if (uptimeVal < 85) uptimeColor = 'text-amber-400';
 
     let priceTypeBadge = '';
-    if (m.price_type === 'free' || m.free) {
-      priceTypeBadge = `<span class="text-[11px] font-semibold text-amber-400">Giá linh hoạt (Miễn phí)</span>`;
+    if (m.price_type === 'request') {
+      priceTypeBadge = `<span class="text-[11px] font-semibold text-amber-400">Theo yêu cầu (trừ từ ví ₫)</span>`;
     } else if (m.price_type === 'token') {
       priceTypeBadge = `<span class="text-[11px] font-semibold text-indigo-400">Dựa trên token</span>`;
     } else {
@@ -820,7 +979,7 @@ function renderModelsStatusGrid() {
            <div><span class="text-[10px] text-slate-500 block">Đầu vào</span><strong class="text-white font-mono">${m.price_input}</strong></div>
            <div><span class="text-[10px] text-slate-500 block">Đầu ra</span><strong class="text-white font-mono">${m.price_output}</strong></div>
          </div>`
-      : `<div class="mt-1"><strong class="text-sm text-white font-mono">${m.price_input || '0 ₫ / yêu cầu'}</strong></div>`;
+      : `<div class="mt-1"><strong class="text-sm text-white font-mono">${m.price_input || '1.000 ₫ / yêu cầu'}</strong></div>`;
 
     const tagsStr = (m.tags || ['Tools']).join(', ');
     const endpointsStr = (m.supported_endpoint_types || ['openai']).join(', ');
@@ -974,7 +1133,7 @@ async function probeAllModelsLive() {
   const btnAll = document.getElementById('btn-probe-all');
   if (btnAll) {
     btnAll.disabled = true;
-    btnAll.innerHTML = `<span>Đang kiểm tra 7 Free Models...</span>`;
+    btnAll.innerHTML = `<span>Đang kiểm tra ${modelsToProbe.length} Models...</span>`;
   }
 
   // Probe top fast models first so user sees immediate feedback
@@ -1025,7 +1184,7 @@ function clearChat() {
     <div id="welcome-message" class="text-center py-10 max-w-xl mx-auto">
       <img src="/logo.png" alt="SLK Gateway" class="w-16 h-16 mx-auto mb-4 rounded-xl object-cover border border-indigo-500/40 shadow-lg shadow-indigo-500/20">
       <h2 class="text-xl font-bold text-slate-100 mb-2">Cuộc trò chuyện mới</h2>
-      <p class="text-slate-400 text-sm">Hãy nhập câu hỏi bên dưới để bắt đầu giao tiếp với mô hình AI miễn phí.</p>
+      <p class="text-slate-400 text-sm">Hãy nhập câu hỏi bên dưới để bắt đầu giao tiếp với mô hình AI (trả phí theo lượt từ ví ₫).</p>
     </div>
   `;
   if (window.lucide) lucide.createIcons();
@@ -1074,7 +1233,7 @@ async function handleChatSubmit(e) {
   if (welcome) welcome.remove();
 
   const modelSelect = document.getElementById('chat-model-select');
-  const selectedModel = modelSelect ? modelSelect.value : 'DeepSeek-V4-Flash';
+  const selectedModel = modelSelect ? modelSelect.value : DEFAULT_MODEL_ID;
 
   chatHistory.push({ role: 'user', content: message });
   appendMessageToUI('user', message);
@@ -1092,6 +1251,7 @@ async function handleChatSubmit(e) {
   activeAbortController = new AbortController();
 
   let assistantReplyText = '';
+  let lastResponseStatus = null;
   const messageContentEl = document.getElementById(`${assistantBubbleId}-content`);
 
   try {
@@ -1111,6 +1271,7 @@ async function handleChatSubmit(e) {
     });
 
     if (!response.ok) {
+      lastResponseStatus = response.status;
       let errDetail = `Lỗi HTTP ${response.status}`;
       try {
         const errJson = await response.json();
@@ -1159,6 +1320,7 @@ async function handleChatSubmit(e) {
       messageContentEl.classList.remove('streaming-cursor');
     }
     chatHistory.push({ role: 'assistant', content: assistantReplyText });
+    loadWallet(); // Cập nhật số dư ví sau mỗi lượt trả phí
 
   } catch (err) {
     if (err.name === 'AbortError') {
@@ -1175,6 +1337,7 @@ async function handleChatSubmit(e) {
           </div>
         `;
       }
+      if (lastResponseStatus === 402) loadWallet(); // Hết tiền -> cập nhật số dư ví
     }
   } finally {
     toggleGenerationButtons(false);
@@ -1372,6 +1535,9 @@ async function executeApiTest() {
       const text = await res.text();
       outputEl.textContent = text;
     }
+
+    // Các request chat/completions có trừ phí -> cập nhật số dư ví
+    if (isPost && res.status !== 402) loadWallet();
 
     if (window.hljs) hljs.highlightElement(outputEl);
 
@@ -1811,10 +1977,64 @@ CREATE POLICY "slk_users_all" ON public.slk_users FOR ALL USING (true) WITH CHEC
 DROP POLICY IF EXISTS "slk_api_keys_all" ON public.slk_api_keys;
 CREATE POLICY "slk_api_keys_all" ON public.slk_api_keys FOR ALL USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS "slk_gate_pool_all" ON public.slk_gate_pool;
-CREATE POLICY "slk_gate_pool_all" ON public.slk_gate_pool FOR ALL USING (true) WITH CHECK (true);`;
+CREATE POLICY "slk_gate_pool_all" ON public.slk_gate_pool FOR ALL USING (true) WITH CHECK (true);
+
+-- 4. VÍ TIỀN (VND)
+ALTER TABLE public.slk_users ADD COLUMN IF NOT EXISTS balance_vnd BIGINT NOT NULL DEFAULT 100000;
+
+-- 5. Lịch sử giao dịch ví
+CREATE TABLE IF NOT EXISTS public.slk_transactions (
+  id TEXT PRIMARY KEY,
+  discord_id TEXT NOT NULL REFERENCES public.slk_users(discord_id) ON DELETE CASCADE,
+  type TEXT NOT NULL DEFAULT 'debit',
+  amount_vnd BIGINT NOT NULL DEFAULT 0,
+  balance_after_vnd BIGINT,
+  model TEXT DEFAULT '',
+  note TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_slk_transactions_discord_id ON public.slk_transactions(discord_id);
+CREATE INDEX IF NOT EXISTS idx_slk_transactions_created_at ON public.slk_transactions(created_at DESC);
+ALTER TABLE public.slk_transactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "slk_transactions_all" ON public.slk_transactions;
+CREATE POLICY "slk_transactions_all" ON public.slk_transactions FOR ALL USING (true) WITH CHECK (true);
+
+-- 6. RPC trừ/cộng tiền ATOMIC
+CREATE OR REPLACE FUNCTION public.slk_debit_balance(p_discord_id TEXT, p_amount BIGINT)
+RETURNS JSON LANGUAGE plpgsql SECURITY INVOKER AS $$
+DECLARE v_balance BIGINT;
+BEGIN
+  IF p_amount IS NULL OR p_amount <= 0 THEN RETURN json_build_object('ok', false, 'error', 'invalid_amount'); END IF;
+  UPDATE public.slk_users SET balance_vnd = balance_vnd - p_amount, updated_at = NOW()
+   WHERE discord_id = p_discord_id AND balance_vnd >= p_amount
+  RETURNING balance_vnd INTO v_balance;
+  IF NOT FOUND THEN
+    SELECT balance_vnd INTO v_balance FROM public.slk_users WHERE discord_id = p_discord_id;
+    RETURN json_build_object('ok', false, 'balance_vnd', COALESCE(v_balance, -1), 'error', CASE WHEN v_balance IS NULL THEN 'user_not_found' ELSE 'insufficient_balance' END);
+  END IF;
+  RETURN json_build_object('ok', true, 'balance_vnd', v_balance);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.slk_topup_balance(p_discord_id TEXT, p_amount BIGINT)
+RETURNS JSON LANGUAGE plpgsql SECURITY INVOKER AS $$
+DECLARE v_balance BIGINT;
+BEGIN
+  IF p_amount IS NULL OR p_amount <= 0 THEN RETURN json_build_object('ok', false, 'error', 'invalid_amount'); END IF;
+  INSERT INTO public.slk_users (discord_id, username, global_name, balance_vnd)
+  VALUES (p_discord_id, p_discord_id, p_discord_id, p_amount)
+  ON CONFLICT (discord_id)
+  DO UPDATE SET balance_vnd = public.slk_users.balance_vnd + p_amount, updated_at = NOW()
+  RETURNING balance_vnd INTO v_balance;
+  RETURN json_build_object('ok', true, 'balance_vnd', v_balance);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.slk_debit_balance(TEXT, BIGINT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.slk_topup_balance(TEXT, BIGINT) TO anon, authenticated, service_role;`;
 
   navigator.clipboard.writeText(sql).then(() => {
-    alert('Đã sao chép đoạn SQL tạo bảng Supabase! Hãy dán vào mục "SQL Editor" trên Supabase và nhấn Run.');
+    alert('Đã sao chép đoạn SQL tạo bảng Supabase (bao gồm bảng Ví tiền & Giao dịch)! Hãy dán vào mục "SQL Editor" trên Supabase và nhấn Run.');
   });
 }
 

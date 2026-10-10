@@ -4,8 +4,9 @@ export const DEFAULT_UPSTREAM_KEY = 'sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5
 export const DEFAULT_DISCORD_CLIENT_ID = '1558375997416677426';
 export const DEFAULT_DISCORD_CLIENT_SECRET = 'KYXTuhr666qbvi8OVKU-qyrZ-ZMpLbx0';
 
-// Mật khẩu Admin mặc định (có thể đổi qua biến môi trường ADMIN_SECRET trên Vercel)
+// Mật khẩu Admin mặc định & Discord User ID duy nhất có quyền Admin Pool
 export const DEFAULT_ADMIN_SECRET = 'slk-admin';
+export const OWNER_ADMIN_DISCORD_ID = '1207080545159487498';
 
 // Danh sách các model 100% FREE (0 ₫) được phép sử dụng trên SLK Gateway
 export const FREE_MODELS = [
@@ -377,17 +378,29 @@ export function selectGatesForRequest() {
   return ordered;
 }
 
-export function checkAdminSecret(candidateSecret = '', discordUserId = '') {
-  const expectedSecret = (process.env.ADMIN_SECRET || DEFAULT_ADMIN_SECRET).trim();
-  const masterKey = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).trim();
-  const adminIds = (process.env.ADMIN_DISCORD_IDS || '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
+export function isAllowedAdminDiscordId(discordUserId = '') {
+  const cleanId = String(discordUserId || '').trim();
+  if (!cleanId) return false;
+  const adminIds = [
+    OWNER_ADMIN_DISCORD_ID,
+    ...(process.env.ADMIN_DISCORD_IDS || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean),
+  ];
+  return adminIds.includes(cleanId);
+}
 
-  if (discordUserId && adminIds.includes(discordUserId)) {
+export function checkAdminSecret(candidateSecret = '', discordUserId = '') {
+  if (isAllowedAdminDiscordId(discordUserId)) {
     return true;
   }
+  // Nếu có truyền discordUserId nhưng không phải ID Admin 1207080545159487498 thì từ chối ngay
+  if (discordUserId && !isAllowedAdminDiscordId(discordUserId)) {
+    return false;
+  }
+  const expectedSecret = (process.env.ADMIN_SECRET || DEFAULT_ADMIN_SECRET).trim();
+  const masterKey = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).trim();
   const cleanCandidate = String(candidateSecret || '').trim();
   if (!cleanCandidate) return false;
   return cleanCandidate === expectedSecret || cleanCandidate === masterKey;
@@ -437,6 +450,14 @@ export async function verifyDiscordUserApiKey(token) {
   }
 
   return false;
+}
+
+export async function extractVerifiedDiscordUserId(token) {
+  if (!token) return '';
+  const valid = await verifyDiscordUserApiKey(token);
+  if (!valid) return '';
+  const parts = token.split('-');
+  return parts[2] || '';
 }
 
 export async function checkAuth(request) {

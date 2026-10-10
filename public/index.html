@@ -128,7 +128,7 @@
           <i data-lucide="play" class="w-3.5 h-3.5 shrink-0"></i>
           <span>API Tester</span>
         </button>
-        <button onclick="switchTab('admin')" id="nav-admin" class="tab-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-slate-200 transition-all flex items-center space-x-2 whitespace-nowrap">
+        <button onclick="switchTab('admin')" id="nav-admin" class="hidden tab-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-slate-200 transition-all items-center space-x-2 whitespace-nowrap">
           <i data-lucide="shield" class="w-3.5 h-3.5 shrink-0 text-amber-400"></i>
           <span>Admin Pool (<span id="gates-count-badge">1</span>)</span>
         </button>
@@ -161,7 +161,7 @@
       <button onclick="switchTab('models')" class="mobile-tab-btn px-3 py-1.5 rounded-lg text-slate-400 whitespace-nowrap" id="mobile-nav-models">Model Status (Free)</button>
       <button onclick="switchTab('chat')" class="mobile-tab-btn px-3 py-1.5 rounded-lg text-slate-400 whitespace-nowrap" id="mobile-nav-chat">Trò chuyện AI</button>
       <button onclick="switchTab('playground')" class="mobile-tab-btn px-3 py-1.5 rounded-lg text-slate-400 whitespace-nowrap" id="mobile-nav-playground">API Tester</button>
-      <button onclick="switchTab('admin')" class="mobile-tab-btn px-3 py-1.5 rounded-lg text-slate-400 whitespace-nowrap" id="mobile-nav-admin">Admin Pool</button>
+      <button onclick="switchTab('admin')" class="hidden mobile-tab-btn px-3 py-1.5 rounded-lg text-slate-400 whitespace-nowrap" id="mobile-nav-admin">Admin Pool</button>
     </div>
   </header>
 
@@ -717,42 +717,21 @@ for await (const chunk of stream) {
     <!-- TAB 5: ADMIN KEY POOL & MULTI-GATE MANAGER -->
     <!-- ========================================== -->
     <section id="tab-admin" class="tab-pane hidden space-y-6">
-      <!-- Admin Lock Screen (Shown if not unlocked yet) -->
-      <div id="admin-lock-screen" class="max-w-md mx-auto p-6 rounded-xl bg-slate-900/80 border border-slate-800 backdrop-blur-sm shadow-2xl space-y-4">
+      <!-- Admin Lock Screen (Only shown if unauthorized) -->
+      <div id="admin-lock-screen" class="hidden max-w-md mx-auto p-6 rounded-xl bg-slate-900/80 border border-slate-800 backdrop-blur-sm shadow-2xl space-y-4">
         <div class="flex items-center space-x-3">
           <div class="w-10 h-10 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
             <i data-lucide="shield-alert" class="w-5 h-5"></i>
           </div>
           <div>
-            <h2 class="text-base font-bold text-white">Xác Thực Quyền Quản Trị (Admin Pool)</h2>
-            <p class="text-xs text-slate-400">Nhập mật khẩu Admin hoặc Master Key để quản lý &amp; nạp thêm API Key vào Pool.</p>
+            <h2 class="text-base font-bold text-white">Khu Vực Quản Trị Viên (Owner Only)</h2>
+            <p class="text-xs text-slate-400">Chỉ tài khoản Discord ID <code class="text-amber-300 font-mono">1207080545159487498</code> mới được phép truy cập Admin Pool.</p>
           </div>
         </div>
-
-        <form onsubmit="handleAdminUnlock(event)" class="space-y-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-400 mb-1.5">Mật khẩu Admin (Mặc định: <code class="text-amber-300 font-mono">slk-admin</code>):</label>
-            <input
-              type="password"
-              id="admin-secret-input"
-              placeholder="Nhập mật khẩu Admin (VD: slk-admin)..."
-              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono"
-            >
-          </div>
-          <div id="admin-auth-error" class="hidden p-2.5 rounded-lg bg-red-950/50 border border-red-800/70 text-xs text-red-300"></div>
-          <button
-            type="submit"
-            id="btn-admin-unlock"
-            class="w-full py-2.5 px-4 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-md shadow-amber-500/20"
-          >
-            <i data-lucide="unlock" class="w-4 h-4"></i>
-            <span>Mở Khóa Bảng Điều Khiển Admin Pool</span>
-          </button>
-        </form>
       </div>
 
-      <!-- Admin Pool Dashboard (Shown once unlocked) -->
-      <div id="admin-pool-dashboard" class="hidden space-y-6">
+      <!-- Admin Pool Dashboard (Shown directly for Discord ID 1207080545159487498) -->
+      <div id="admin-pool-dashboard" class="space-y-6">
         <!-- Top Overview Card -->
         <div class="p-6 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur-sm shadow-xl">
           <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
@@ -768,6 +747,10 @@ for await (const chunk of stream) {
             </div>
 
             <div class="flex flex-wrap items-center gap-2 shrink-0">
+              <span class="px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono flex items-center space-x-1.5">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                <span>Admin ID: 1207080545159487498</span>
+              </span>
               <button onclick="testAllAdminGates()" id="btn-test-all-gates" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-all whitespace-nowrap">
                 <i data-lucide="activity" class="w-3.5 h-3.5"></i>
                 <span>Ping Kiểm Tra Tất Cả Gates</span>
@@ -775,10 +758,6 @@ for await (const chunk of stream) {
               <button onclick="loadAdminPool()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 flex items-center space-x-1.5 transition-all whitespace-nowrap">
                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                 <span>Làm mới Pool</span>
-              </button>
-              <button onclick="lockAdminSession()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-300 border border-slate-700 text-xs flex items-center space-x-1 transition-all whitespace-nowrap" title="Khóa quyền Admin">
-                <i data-lucide="lock" class="w-3.5 h-3.5"></i>
-                <span>Khóa</span>
               </button>
             </div>
           </div>

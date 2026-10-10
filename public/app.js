@@ -19,6 +19,11 @@ let clientAccessToken = localStorage.getItem('nexus_discord_api_key') || '';
 let userApiKeys = [];
 let adminSecret = localStorage.getItem('slk_admin_secret') || '';
 let adminGatesList = [];
+const OWNER_ADMIN_DISCORD_ID = '1207080545159487498';
+
+function isCurrentUserOwnerAdmin() {
+  return Boolean(discordUser && String(discordUser.id).trim() === OWNER_ADMIN_DISCORD_ID);
+}
 
 let oauthConfig = {
   clientId: '1558375997416677426',
@@ -174,6 +179,9 @@ function updateAuthUI() {
   const userPill = document.getElementById('discord-user-pill');
   const userAvatar = document.getElementById('discord-user-avatar');
   const userName = document.getElementById('discord-user-name');
+  const navAdmin = document.getElementById('nav-admin');
+  const mobileNavAdmin = document.getElementById('mobile-nav-admin');
+  const tabAdmin = document.getElementById('tab-admin');
 
   if (discordUser && clientAccessToken) {
     ensureDefaultKeyInList(clientAccessToken);
@@ -186,18 +194,51 @@ function updateAuthUI() {
     if (userAvatar) userAvatar.src = discordUser.avatar_url;
     if (userName) userName.textContent = discordUser.global_name || discordUser.username;
 
+    // Chỉ hiển thị nút Admin Pool cho đúng Discord User ID 1207080545159487498
+    if (isCurrentUserOwnerAdmin()) {
+      if (navAdmin) {
+        navAdmin.classList.remove('hidden');
+        navAdmin.classList.add('flex');
+      }
+      if (mobileNavAdmin) {
+        mobileNavAdmin.classList.remove('hidden');
+      }
+      loadAdminPool(true);
+    } else {
+      if (navAdmin) {
+        navAdmin.classList.add('hidden');
+        navAdmin.classList.remove('flex');
+      }
+      if (mobileNavAdmin) {
+        mobileNavAdmin.classList.add('hidden');
+      }
+      if (tabAdmin) {
+        tabAdmin.classList.add('hidden');
+      }
+      if (currentTab === 'admin') {
+        switchTab('docs');
+      }
+    }
+
     updateGatewayUrls();
     renderApiKeysTable();
     checkGatewayHealth();
     fetchAvailableModels();
-    if (adminSecret) {
-      loadAdminPool(true);
-    }
   } else {
     if (gate) gate.classList.remove('hidden');
     if (userPill) {
       userPill.classList.add('hidden');
       userPill.classList.remove('flex');
+    }
+    if (navAdmin) {
+      navAdmin.classList.add('hidden');
+      navAdmin.classList.remove('flex');
+    }
+    if (mobileNavAdmin) {
+      mobileNavAdmin.classList.add('hidden');
+    }
+    if (tabAdmin) {
+      tabAdmin.classList.add('hidden');
     }
   }
 }
@@ -434,6 +475,10 @@ for await (const chunk of stream) {
 // Tab Switching
 // ------------------------------------------
 function switchTab(tabId) {
+  if (tabId === 'admin' && !isCurrentUserOwnerAdmin()) {
+    return;
+  }
+
   currentTab = tabId;
 
   document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
@@ -460,7 +505,7 @@ function switchTab(tabId) {
     activeMobileBtn.classList.remove('text-slate-400');
   }
 
-  if (tabId === 'admin' && adminSecret) {
+  if (tabId === 'admin' && isCurrentUserOwnerAdmin()) {
     loadAdminPool(true);
   }
 
@@ -1275,15 +1320,23 @@ function copySnippet(codeBlockId) {
 // ==========================================
 // Admin Pool Management (Multi-Gate Load Balancer)
 // ==========================================
+function getAdminRequestHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${clientAccessToken}`,
+    'X-Admin-Secret': adminSecret || 'slk-admin',
+  };
+}
+
 async function handleAdminUnlock(e) {
   if (e && e.preventDefault) e.preventDefault();
+  if (!isCurrentUserOwnerAdmin()) return;
 
   const input = document.getElementById('admin-secret-input');
   const errEl = document.getElementById('admin-auth-error');
   const btn = document.getElementById('btn-admin-unlock');
 
-  const secretCandidate = (input?.value || '').trim();
-  if (!secretCandidate) return;
+  const secretCandidate = (input?.value || '').trim() || 'slk-admin';
 
   if (errEl) errEl.classList.add('hidden');
   if (btn) {
@@ -1296,6 +1349,7 @@ async function handleAdminUnlock(e) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${clientAccessToken}`,
         'X-Admin-Secret': secretCandidate,
       },
       body: JSON.stringify({
@@ -1306,7 +1360,7 @@ async function handleAdminUnlock(e) {
 
     const data = await res.json();
     if (!res.ok || !data.success) {
-      throw new Error(data.error || 'Mật khẩu Admin hoặc Master Key không hợp lệ.');
+      throw new Error(data.error || 'Chỉ Discord ID 1207080545159487498 mới có quyền Admin.');
     }
 
     adminSecret = secretCandidate;
@@ -1351,21 +1405,19 @@ function showAdminDashboardUI(unlocked) {
 }
 
 async function loadAdminPool(silent = false) {
-  if (!adminSecret) {
+  if (!isCurrentUserOwnerAdmin()) {
     showAdminDashboardUI(false);
     return;
   }
 
   try {
     const res = await fetch(`/api/admin/pool?discordUserId=${encodeURIComponent(discordUser?.id || '')}`, {
-      headers: {
-        'X-Admin-Secret': adminSecret,
-      },
+      headers: getAdminRequestHeaders(),
     });
     const data = await res.json();
     if (!res.ok || !data.success) {
-      if (!silent) alert(data.error || 'Phiên Admin đã hết hạn.');
-      lockAdminSession();
+      if (!silent) alert(data.error || 'Không có quyền truy cập Admin Pool.');
+      showAdminDashboardUI(false);
       return;
     }
 
@@ -1478,7 +1530,7 @@ function renderAdminPoolTable() {
 
 async function handleAddGatesToPool(e) {
   if (e && e.preventDefault) e.preventDefault();
-  if (!adminSecret) return;
+  if (!isCurrentUserOwnerAdmin()) return;
 
   const nameInput = document.getElementById('admin-new-gate-name');
   const urlInput = document.getElementById('admin-new-gate-url');
@@ -1498,10 +1550,7 @@ async function handleAddGatesToPool(e) {
   try {
     const res = await fetch('/api/admin/pool', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-Secret': adminSecret,
-      },
+      headers: getAdminRequestHeaders(),
       body: JSON.stringify({
         action: 'add',
         name: (nameInput?.value || '').trim(),
@@ -1543,14 +1592,11 @@ async function handleAddGatesToPool(e) {
 }
 
 async function toggleAdminGate(id) {
-  if (!adminSecret) return;
+  if (!isCurrentUserOwnerAdmin()) return;
   try {
     const res = await fetch('/api/admin/pool', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-Secret': adminSecret,
-      },
+      headers: getAdminRequestHeaders(),
       body: JSON.stringify({
         action: 'toggle',
         id,
@@ -1570,14 +1616,11 @@ async function toggleAdminGate(id) {
 }
 
 async function deleteAdminGate(id) {
-  if (!adminSecret) return;
+  if (!isCurrentUserOwnerAdmin()) return;
   try {
     const res = await fetch('/api/admin/pool', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-Secret': adminSecret,
-      },
+      headers: getAdminRequestHeaders(),
       body: JSON.stringify({
         action: 'delete',
         id,
@@ -1599,7 +1642,7 @@ async function deleteAdminGate(id) {
 }
 
 async function testSingleAdminGate(id) {
-  if (!adminSecret) return;
+  if (!isCurrentUserOwnerAdmin()) return;
   const btn = document.getElementById(`btn-test-gate-${id}`);
   const statusCell = document.getElementById(`gate-status-cell-${id}`);
 
@@ -1611,10 +1654,7 @@ async function testSingleAdminGate(id) {
   try {
     const res = await fetch('/api/admin/pool', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-Secret': adminSecret,
-      },
+      headers: getAdminRequestHeaders(),
       body: JSON.stringify({
         action: 'test',
         id,
@@ -1647,6 +1687,7 @@ async function testSingleAdminGate(id) {
 }
 
 async function testAllAdminGates() {
+  if (!isCurrentUserOwnerAdmin()) return;
   const btnAll = document.getElementById('btn-test-all-gates');
   if (btnAll) {
     btnAll.disabled = true;

@@ -18,6 +18,8 @@ import {
   removeGateFromPool,
   selectGatesForRequest,
   checkAdminSecret,
+  isAllowedAdminDiscordId,
+  extractVerifiedDiscordUserId,
 } from './api/_utils.js';
 import { probeSingleModel } from './api/model-status.js';
 import { testGateHealth } from './api/admin/pool.js';
@@ -166,11 +168,19 @@ const server = http.createServer(async (req, res) => {
 
   // Admin Key Pool Management Endpoint (/api/admin/pool)
   if (pathname === '/api/admin/pool') {
+    const authHeader = req.headers['authorization'] || '';
+    const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const verifiedDiscordId = await extractVerifiedDiscordUserId(bearerToken);
     const headerSecret = req.headers['x-admin-secret'] || parsedUrl.searchParams.get('secret') || '';
-    const authorized = (headerSecret && checkAdminSecret(headerSecret)) || (await checkNodeAuth(req));
+
+    const authorized =
+      isAllowedAdminDiscordId(verifiedDiscordId) ||
+      (headerSecret && checkAdminSecret(headerSecret, verifiedDiscordId)) ||
+      (await checkNodeAuth(req));
+
     if (!authorized) {
       res.writeHead(401, { 'Content-Type': 'application/json', ...CORS_HEADERS });
-      res.end(JSON.stringify({ success: false, error: 'Unauthorized: Vui lòng đăng nhập Discord hoặc nhập đúng mật khẩu Admin.' }));
+      res.end(JSON.stringify({ success: false, error: 'Unauthorized: Chỉ Admin Discord ID 1207080545159487498 mới có quyền truy cập.' }));
       return;
     }
 
@@ -189,10 +199,10 @@ const server = http.createServer(async (req, res) => {
     };
 
     if (req.method === 'GET') {
-      const discordUserId = parsedUrl.searchParams.get('discordUserId') || '';
+      const discordUserId = verifiedDiscordId || parsedUrl.searchParams.get('discordUserId') || '';
       if (!checkAdminSecret(headerSecret, discordUserId)) {
         res.writeHead(403, { 'Content-Type': 'application/json', ...CORS_HEADERS });
-        res.end(JSON.stringify({ success: false, error: 'Forbidden: Sai mật khẩu Admin.' }));
+        res.end(JSON.stringify({ success: false, error: 'Forbidden: Chỉ Admin Discord ID 1207080545159487498 mới được xem Admin Pool.' }));
         return;
       }
       res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
@@ -204,13 +214,13 @@ const server = http.createServer(async (req, res) => {
       try {
         const body = await readJsonBody(req);
         const secret = body.adminSecret || headerSecret;
-        const discordUserId = body.discordUserId || '';
+        const discordUserId = verifiedDiscordId || body.discordUserId || '';
 
         if (!checkAdminSecret(secret, discordUserId)) {
           res.writeHead(403, { 'Content-Type': 'application/json', ...CORS_HEADERS });
           res.end(JSON.stringify({
             success: false,
-            error: 'Mật khẩu Admin không đúng! (Mặc định: slk-admin hoặc nhập Master API Key của bạn).',
+            error: 'Forbidden: Chỉ tài khoản Discord ID 1207080545159487498 mới có quyền quản trị Admin Pool!',
           }));
           return;
         }

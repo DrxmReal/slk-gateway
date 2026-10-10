@@ -21,14 +21,20 @@ export const DEFAULT_USER_BALANCE_VND = Number(
 // Phí cố định cho mỗi request theo model (₫ / lượt)
 export const MODEL_REQUEST_FEE_VND = {
   'auto': 1000,
-  'step-5-preview:free': 1000,
-  'nemotron-3-super-120b-a12b:free': 1000,
+  'nemotron-3-super-120b-a12b': 1000,
+  'step-5-preview': 1000,
   'glm-5.3': 1000,
+  'k2-horizon': 500,
+  'agnes-3.0-flash': 500,
+  'space-bunny': 500,
+  'longcat-2.5': 500,
+  'sensenova-6.8-flash-lite': 500,
+  // Backward compatibility
+  'nemotron-3-super-120b-a12b:free': 1000,
+  'step-5-preview:free': 1000,
   'k2-horizon:free': 500,
   'agnes-3.0-flash:free': 500,
   'space-bunny-free': 500,
-  'longcat-2.5': 500,
-  'sensenova-6.8-flash-lite': 500,
 };
 
 // Phí mặc định cho các endpoint khác (embeddings, audio, ...)

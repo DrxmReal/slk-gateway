@@ -6,6 +6,7 @@ import {
   UNOROUTER_BASE_URL,
   UNOROUTER_API_KEY,
   UNOROUTER_MODELS,
+  MODEL_ALIASES,
   MODELS_CATALOG,
   corsHeaders,
   handleOptions,
@@ -112,8 +113,9 @@ export default async function handler(request) {
   const targetModel = url.searchParams.get('model');
 
   if (targetModel) {
-    const isSpaceBunny = targetModel === 'space-bunny-free';
-    const isUnoRouter = UNOROUTER_MODELS.includes(targetModel);
+    const upstreamModel = MODEL_ALIASES[targetModel] || targetModel;
+    const isSpaceBunny = upstreamModel === 'space-bunny-free';
+    const isUnoRouter = UNOROUTER_MODELS.includes(upstreamModel);
 
     let probeBase = activeGate.baseUrl;
     let probeKey = activeGate.apiKey;
@@ -126,7 +128,8 @@ export default async function handler(request) {
       probeKey = UNOROUTER_API_KEY;
     }
 
-    const probe = await probeSingleModel(targetModel, probeBase, probeKey);
+    const probe = await probeSingleModel(upstreamModel, probeBase, probeKey);
+    probe.id = targetModel;
     return new Response(
       JSON.stringify({ success: true, probe, timestamp: new Date().toISOString() }),
       { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }

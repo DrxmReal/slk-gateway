@@ -23,10 +23,25 @@ const OWNER_ADMIN_DISCORD_ID = '1207080545159487498';
 let adminWalletTransactions = [];
 
 // ---- Ví tiền (VND): mỗi user có 100.000 ₫, trừ phí cố định theo mỗi request ----
-const GATEWAY_MODELS = ['auto', 'glm-5.3', 'longcat-2.5', 'sensenova-6.8-flash-lite'];
+const GATEWAY_MODELS = [
+  'auto',
+  'nemotron-3-super-120b-a12b',
+  'step-5-preview',
+  'k2-horizon',
+  'agnes-3.0-flash',
+  'space-bunny',
+  'glm-5.3',
+  'longcat-2.5',
+  'sensenova-6.8-flash-lite'
+];
 const MODEL_FEE_VND = {
   'auto': 1000,
+  'nemotron-3-super-120b-a12b': 1000,
+  'step-5-preview': 1000,
   'glm-5.3': 1000,
+  'k2-horizon': 500,
+  'agnes-3.0-flash': 500,
+  'space-bunny': 500,
   'longcat-2.5': 500,
   'sensenova-6.8-flash-lite': 500,
 };
@@ -688,7 +703,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="auto",  # Models: auto, glm-5.3, longcat-2.5, sensenova-6.8-flash-lite (trả phí cố định theo lượt, đơn vị ₫)
+    model="auto",  # Models: auto, nemotron-3-super-120b-a12b, step-5-preview, k2-horizon, agnes-3.0-flash, space-bunny, glm-5.3... (trừ phí cố định theo lượt, đơn vị ₫)
     messages=[
         {"role": "user", "content": "Xin chào!"}
     ],

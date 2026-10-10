@@ -26,27 +26,65 @@ export const UNOROUTER_MODELS = [
   'agnes-3.0-flash:free',
 ];
 
-// Danh sách model ĐƯỢC PHÉP sử dụng trên Gateway
+// Mapping alias hiển thị sạch -> tên model nội bộ trên Upstream (UnoRouter / OpenCode)
+export const MODEL_ALIASES = {
+  'nemotron-3-super-120b-a12b': 'nemotron-3-super-120b-a12b:free',
+  'step-5-preview': 'step-5-preview:free',
+  'k2-horizon': 'k2-horizon:free',
+  'agnes-3.0-flash': 'agnes-3.0-flash:free',
+  'space-bunny': 'space-bunny-free',
+};
+
+// Danh sách model ĐƯỢC PHÉP sử dụng trên Gateway (auto đứng đầu, tên model sạch không :free)
 export const FREE_MODELS = [
-  'step-5-preview:free',
-  'k2-horizon:free',
-  'nemotron-3-super-120b-a12b:free',
-  'agnes-3.0-flash:free',
-  'space-bunny-free',
   'auto',
+  'nemotron-3-super-120b-a12b',
+  'step-5-preview',
+  'k2-horizon',
+  'agnes-3.0-flash',
+  'space-bunny',
   'glm-5.3',
   'longcat-2.5',
   'sensenova-6.8-flash-lite',
+  // Tương thích ngược nếu client gọi có kèm :free / -free
+  'nemotron-3-super-120b-a12b:free',
+  'step-5-preview:free',
+  'k2-horizon:free',
+  'agnes-3.0-flash:free',
+  'space-bunny-free',
 ];
 
 export const ALL_MODELS = FREE_MODELS;
 
 // Model mặc định khi client không chỉ định (hoặc chỉ định model không hợp lệ)
-export const DEFAULT_MODEL = 'step-5-preview:free';
+export const DEFAULT_MODEL = 'auto';
 
 export const MODELS_CATALOG = [
   {
-    id: 'nemotron-3-super-120b-a12b:free',
+    id: 'auto',
+    object: 'model',
+    created: 1626777600,
+    owned_by: 'TrustedRouter',
+    provider: 'TrustedRouter',
+    provider_code: 'router',
+    free: false,
+    price_type: 'request',
+    price_label: '1.000 ₫ / yêu cầu',
+    price_input: '1.000 ₫ / yêu cầu',
+    price_output: '',
+    tags: ['Reasoning', 'Tools', 'vision', '1m'],
+    description: 'Tự động định tuyến thông minh: hệ thống tự chọn model AI chất lượng tốt nhất, nhanh nhất và ổn định nhất tại thời điểm gọi.',
+    supported_endpoint_types: ['openai', 'anthropic', 'gemini'],
+    status: {
+      uptime: 96.55,
+      latency: '29.61s',
+      tps: '90.4t/s',
+      state: 'online',
+      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    }
+  },
+  {
+    id: 'nemotron-3-super-120b-a12b',
     object: 'model',
     created: 1791651200,
     owned_by: 'NVIDIA',
@@ -69,7 +107,7 @@ export const MODELS_CATALOG = [
     }
   },
   {
-    id: 'step-5-preview:free',
+    id: 'step-5-preview',
     object: 'model',
     created: 1791651000,
     owned_by: 'StepFun',
@@ -92,7 +130,7 @@ export const MODELS_CATALOG = [
     }
   },
   {
-    id: 'k2-horizon:free',
+    id: 'k2-horizon',
     object: 'model',
     created: 1791651100,
     owned_by: 'K2 AI',
@@ -115,7 +153,7 @@ export const MODELS_CATALOG = [
     }
   },
   {
-    id: 'agnes-3.0-flash:free',
+    id: 'agnes-3.0-flash',
     object: 'model',
     created: 1791651300,
     owned_by: 'Agnes AI',
@@ -138,7 +176,7 @@ export const MODELS_CATALOG = [
     }
   },
   {
-    id: 'space-bunny-free',
+    id: 'space-bunny',
     object: 'model',
     created: 1791649661,
     owned_by: 'Space AI',
@@ -156,29 +194,6 @@ export const MODELS_CATALOG = [
       uptime: 99.85,
       latency: '2.35s',
       tps: '88.2t/s',
-      state: 'online',
-      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-    }
-  },
-  {
-    id: 'auto',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'TrustedRouter',
-    provider: 'TrustedRouter',
-    provider_code: 'router',
-    free: false,
-    price_type: 'request',
-    price_label: '1.000 ₫ / yêu cầu',
-    price_input: '1.000 ₫ / yêu cầu',
-    price_output: '',
-    tags: ['Reasoning', 'Tools', 'vision', '1m'],
-    description: 'Tự động định tuyến thông minh: hệ thống tự chọn model free chất lượng tốt nhất, nhanh nhất và ổn định nhất tại thời điểm gọi.',
-    supported_endpoint_types: ['openai', 'anthropic', 'gemini'],
-    status: {
-      uptime: 96.55,
-      latency: '29.61s',
-      tps: '90.4t/s',
       state: 'online',
       bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
     }
@@ -485,14 +500,14 @@ async function sha256Hex(input) {
 
 // Tạo API Key mặc định dựa trên Discord User ID (sk-dc-<uid>-<sig>)
 export async function generateDiscordUserApiKey(discordUserId) {
-  const secret = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).slice(0, 16);
+  const secret = (process.env.UPSTREAM_API_KEY || process.env.DISCORD_CLIENT_SECRET || 'slk-gateway-secret-salt-2026').slice(0, 16);
   const hashHex = await sha256Hex(`${discordUserId}:${secret}`);
   return `sk-dc-${discordUserId}-${hashHex.slice(0, 24)}`;
 }
 
 // Tạo API Key mới có salt ngẫu nhiên trong Dashboard (sk-nx-<uid>-<salt>-<sig>)
 export async function generateCustomDiscordApiKey(discordUserId, customSalt = '') {
-  const secret = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).slice(0, 16);
+  const secret = (process.env.UPSTREAM_API_KEY || process.env.DISCORD_CLIENT_SECRET || 'slk-gateway-secret-salt-2026').slice(0, 16);
   const salt = customSalt || Math.random().toString(36).substring(2, 10);
   const hashHex = await sha256Hex(`${discordUserId}:${salt}:${secret}`);
   return `sk-nx-${discordUserId}-${salt}-${hashHex.slice(0, 20)}`;
@@ -655,6 +670,9 @@ export async function proxyRequest(request, targetPath) {
               { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
             );
           }
+          // Chuẩn hóa tên model sang model upstream cần (VD: step-5-preview -> step-5-preview:free)
+          const upstreamModel = MODEL_ALIASES[requestModel] || requestModel;
+          parsed.model = upstreamModel;
           bodyPayload = JSON.stringify(parsed);
         } else {
           bodyPayload = rawBody;
@@ -693,8 +711,9 @@ export async function proxyRequest(request, targetPath) {
   }
 
   // Lấy danh sách Gates theo Round-Robin; nếu gọi model chuyên biệt thì điều hướng tới Gate tương ứng
-  const isSpaceBunny = requestModel === 'space-bunny-free';
-  const isUnoRouter = UNOROUTER_MODELS.includes(requestModel);
+  const routedModel = MODEL_ALIASES[requestModel] || requestModel;
+  const isSpaceBunny = routedModel === 'space-bunny-free';
+  const isUnoRouter = UNOROUTER_MODELS.includes(routedModel);
 
   const candidateGates = isSpaceBunny
     ? [{

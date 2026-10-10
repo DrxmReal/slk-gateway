@@ -4,12 +4,16 @@ import {
   maskApiKey,
 } from './_utils.js';
 
-// Project URL mặc định từ project Supabase của Admin (hoqqtkglwphdbyfeegjq)
+// Project URL & Publishable Key mặc định từ project Supabase của Admin (hoqqtkglwphdbyfeegjq)
 export const DEFAULT_SUPABASE_URL = 'https://hoqqtkglwphdbyfeegjq.supabase.co';
+export const DEFAULT_SUPABASE_KEY = 'sb_publishable_GU-PB1C61DM6CQ9sTWhYgw_H0gHGx5J';
 
-// Tự động chuyển đổi nếu người dùng dán link Dashboard (https://supabase.com/dashboard/project/xxxx) thành https://xxxx.supabase.co
+// Tự động chuyển đổi nếu người dùng dán link Dashboard hoặc link /rest/v1/ thành https://xxxx.supabase.co
 export function normalizeSupabaseUrl(raw = '') {
-  const trimmed = String(raw || '').trim().replace(/\/+$/, '');
+  const trimmed = String(raw || '')
+    .trim()
+    .replace(/\/rest\/v1\/?$/i, '')
+    .replace(/\/+$/, '');
   if (!trimmed) return '';
   const dashMatch = trimmed.match(/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i);
   if (dashMatch && dashMatch[1]) {
@@ -47,7 +51,8 @@ export function getSupabaseConfig() {
     process.env.SUPABASE_KEY ||
     process.env.SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    ''
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    DEFAULT_SUPABASE_KEY
   ).trim();
 
   return {

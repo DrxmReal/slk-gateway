@@ -570,8 +570,11 @@ for await (const chunk of stream) {
           <!-- Provider Filters -->
           <div class="flex flex-wrap items-center gap-1.5" id="provider-filter-bar">
             <button onclick="setModelProviderFilter('all')" data-provider="all" class="provider-chip active px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition-all">Tất cả (9)</button>
-            <button onclick="setModelProviderFilter('unorouter')" data-provider="unorouter" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">UnoRouter (4)</button>
-            <button onclick="setModelProviderFilter('opencode')" data-provider="opencode" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">OpenCode Zen (1)</button>
+            <button onclick="setModelProviderFilter('nvidia')" data-provider="nvidia" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">NVIDIA (1)</button>
+            <button onclick="setModelProviderFilter('stepfun')" data-provider="stepfun" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">StepFun (1)</button>
+            <button onclick="setModelProviderFilter('k2')" data-provider="k2" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">K2 AI (1)</button>
+            <button onclick="setModelProviderFilter('agnes')" data-provider="agnes" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Agnes AI (1)</button>
+            <button onclick="setModelProviderFilter('space')" data-provider="space" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Space AI (1)</button>
             <button onclick="setModelProviderFilter('zhipu')" data-provider="zhipu" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Zhipu GLM (1)</button>
             <button onclick="setModelProviderFilter('longcat')" data-provider="longcat" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">LongCat (1)</button>
             <button onclick="setModelProviderFilter('sensenova')" data-provider="sensenova" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">SenseNova (1)</button>
@@ -605,14 +608,14 @@ for await (const chunk of stream) {
       <!-- Chat Header -->
       <div class="px-4 py-3 border-b border-slate-800 bg-slate-900/80 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center space-x-3">
-          <label class="text-xs text-slate-400 font-medium whitespace-nowrap">Model (trả phí theo lượt):</label>
+          <label class="text-xs text-slate-400 font-medium whitespace-nowrap">Model (trừ phí từ ví):</label>
           <div class="relative">
             <select id="chat-model-select" class="appearance-none bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg pl-3 pr-8 py-1.5 font-mono focus:outline-none focus:border-indigo-500">
-              <option value="k2-horizon:free" selected>⚡ k2-horizon:free (99.40% • 0 ₫/lượt Miễn phí)</option>
-              <option value="nemotron-3-super-120b-a12b:free">🧠 nemotron-3-super-120b (99.10% • 0 ₫/lượt Miễn phí)</option>
-              <option value="step-5-preview:free">Step 5 Preview (98.20% • 0 ₫/lượt Miễn phí)</option>
-              <option value="agnes-3.0-flash:free">Agnes 3.0 Flash (97.80% • 0 ₫/lượt Miễn phí)</option>
-              <option value="space-bunny-free">🐰 space-bunny-free (99.85% • 0 ₫/lượt Miễn phí)</option>
+              <option value="nemotron-3-super-120b-a12b:free" selected>🧠 nemotron-3-super-120b (99.10% • 1.000 ₫/lượt)</option>
+              <option value="step-5-preview:free">🚀 step-5-preview (98.20% • 1.000 ₫/lượt)</option>
+              <option value="k2-horizon:free">⚡ k2-horizon (99.40% • 500 ₫/lượt)</option>
+              <option value="agnes-3.0-flash:free">⚡ agnes-3.0-flash (97.80% • 500 ₫/lượt)</option>
+              <option value="space-bunny-free">🐰 space-bunny (99.85% • 500 ₫/lượt)</option>
               <option value="auto">auto - TrustedRouter (96.55% • 1.000 ₫/lượt)</option>
               <option value="glm-5.3">glm-5.3 (97.46% • 1.000 ₫/lượt)</option>
               <option value="longcat-2.5">longcat-2.5 (99.78% • 500 ₫/lượt)</option>
@@ -623,12 +626,12 @@ for await (const chunk of stream) {
 
           <!-- Quick Model Badges -->
           <div class="hidden xl:flex items-center space-x-1.5">
-            <button onclick="selectModel('k2-horizon:free')" class="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">⚡ K2 Horizon (0 ₫)</button>
-            <button onclick="selectModel('nemotron-3-super-120b-a12b:free')" class="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🧠 Nemotron 120B (0 ₫)</button>
-            <button onclick="selectModel('space-bunny-free')" class="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🐰 Space Bunny (0 ₫)</button>
-            <button onclick="selectModel('auto')" class="text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all">💳 auto</button>
-            <button onclick="selectModel('glm-5.3')" class="text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all">💳 GLM-5.3</button>
-            <button onclick="selectModel('longcat-2.5')" class="text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all">💳 LongCat-2.5</button>
+            <button onclick="selectModel('nemotron-3-super-120b-a12b:free')" class="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🧠 Nemotron 120B (1.000 ₫)</button>
+            <button onclick="selectModel('step-5-preview:free')" class="text-[11px] px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 transition-all">🚀 Step 5 (1.000 ₫)</button>
+            <button onclick="selectModel('k2-horizon:free')" class="text-[11px] px-2.5 py-1 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 border border-violet-500/30 transition-all">⚡ K2 Horizon (500 ₫)</button>
+            <button onclick="selectModel('space-bunny-free')" class="text-[11px] px-2.5 py-1 rounded-lg bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30 transition-all">🐰 Space Bunny (500 ₫)</button>
+            <button onclick="selectModel('auto')" class="text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all">💳 auto (1.000 ₫)</button>
+            <button onclick="selectModel('glm-5.3')" class="text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all">💳 GLM-5.3 (1.000 ₫)</button>
           </div>
         </div>
 

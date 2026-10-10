@@ -20,13 +20,13 @@ export const DEFAULT_USER_BALANCE_VND = Number(
 
 // Phí cố định cho mỗi request theo model (₫ / lượt)
 export const MODEL_REQUEST_FEE_VND = {
-  'step-5-preview:free': 0,
-  'k2-horizon:free': 0,
-  'nemotron-3-super-120b-a12b:free': 0,
-  'agnes-3.0-flash:free': 0,
-  'space-bunny-free': 0,
   'auto': 1000,
+  'step-5-preview:free': 1000,
+  'nemotron-3-super-120b-a12b:free': 1000,
   'glm-5.3': 1000,
+  'k2-horizon:free': 500,
+  'agnes-3.0-flash:free': 500,
+  'space-bunny-free': 500,
   'longcat-2.5': 500,
   'sensenova-6.8-flash-lite': 500,
 };
@@ -42,15 +42,8 @@ export function formatVnd(amount) {
 
 // Lấy phí cố định (₫) của 1 request theo model
 export function getRequestFeeVnd(model = '') {
-  if (
-    model === 'step-5-preview:free' ||
-    model === 'k2-horizon:free' ||
-    model === 'nemotron-3-super-120b-a12b:free' ||
-    model === 'agnes-3.0-flash:free' ||
-    model === 'space-bunny-free'
-  ) return 0;
   const fee = MODEL_REQUEST_FEE_VND[model];
-  return Number.isFinite(fee) && fee >= 0 ? fee : DEFAULT_REQUEST_FEE_VND;
+  return Number.isFinite(fee) && fee > 0 ? fee : DEFAULT_REQUEST_FEE_VND;
 }
 
 // Trừ phí 1 request. Trả về { success, feeVnd, balanceVnd, code, error }
@@ -63,15 +56,6 @@ export async function chargeUserForRequest(discordUserId, model = '') {
 
   const feeVnd = getRequestFeeVnd(model);
   const current = await dbGetUserBalanceVnd(uid);
-
-  // Model 0 ₫ (Miễn phí 100% như space-bunny-free) -> không trừ phí
-  if (feeVnd === 0) {
-    return {
-      success: true,
-      feeVnd: 0,
-      balanceVnd: current,
-    };
-  }
 
   if (current < feeVnd) {
     return {

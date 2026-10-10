@@ -5,12 +5,21 @@ import {
   checkAdminSecret,
   isAllowedAdminDiscordId,
   extractVerifiedDiscordUserId,
+  initKeyPoolIfNeeded,
   getPublicPoolList,
   getRawPoolList,
   addGatesToPool,
   toggleGateInPool,
   removeGateFromPool,
 } from '../_utils.js';
+import {
+  getSupabaseConfig,
+  setRuntimeSupabaseConfig,
+  testSupabaseConnection,
+  dbLoadGatePoolFromSupabase,
+  dbSyncGatePoolToSupabase,
+  dbDeleteGateFromSupabase,
+} from '../_supabase.js';
 
 export const config = {
   runtime: 'edge',
@@ -72,6 +81,7 @@ export default async function handler(request) {
   const buildPoolPayload = (extra = {}) => {
     const rawPool = getRawPoolList();
     const list = getPublicPoolList();
+    const sbCfg = getSupabaseConfig();
     return {
       success: true,
       pool: list,
@@ -79,6 +89,10 @@ export default async function handler(request) {
       total: list.length,
       active: list.filter(g => g.enabled !== false).length,
       envExport: rawPool.map(g => g.apiKey).join(','),
+      supabase: {
+        configured: sbCfg.configured,
+        url: sbCfg.url,
+      },
       ...extra,
     };
   };
@@ -90,6 +104,11 @@ export default async function handler(request) {
         JSON.stringify({ success: false, error: 'Forbidden: Chỉ Admin Discord ID 1207080545159487498 mới được xem Admin Pool.' }),
         { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
       );
+    }
+
+    const sbGates = await dbLoadGatePoolFromSupabase();
+    if (sbGates && sbGates.length > 0) {
+      initKeyPoolIfNeeded(sbGates);
     }
 
     return new Response(
@@ -118,8 +137,26 @@ export default async function handler(request) {
       const targetGateId = body.gateId || body.id;
 
       if (action === 'verify') {
+        const sbGates = await dbLoadGatePoolFromSupabase();
+        if (sbGates && sbGates.length > 0) {
+          initKeyPoolIfNeeded(sbGates);
+        }
         return new Response(
           JSON.stringify(buildPoolPayload({ isAdmin: true })),
+          { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
+      }
+
+      if (action === 'save_supabase') {
+        const sbUrl = (body.supabaseUrl || '').trim();
+        const sbKey = (body.supabaseKey || '').trim();
+        const testRes = await testSupabaseConnection(sbUrl, sbKey);
+        if (testRes.connected) {
+          setRuntimeSupabaseConfig(sbUrl, sbKey);
+          await dbSyncGatePoolToSupabase(getRawPoolList());
+        }
+        return new Response(
+          JSON.stringify(buildPoolPayload({ supabaseTest: testRes })),
           { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
         );
       }
@@ -131,6 +168,7 @@ export default async function handler(request) {
 
         const added = addGatesToPool(keys, name, baseUrl);
         await Promise.allSettled(added.map(g => testGateHealth(g)));
+        await dbSyncGatePoolToSupabase(getRawPoolList());
 
         return new Response(
           JSON.stringify(buildPoolPayload({ addedCount: added.length })),
@@ -140,6 +178,7 @@ export default async function handler(request) {
 
       if (action === 'toggle') {
         toggleGateInPool(targetGateId, body.enabled);
+        await dbSyncGatePoolToSupabase(getRawPoolList());
         return new Response(
           JSON.stringify(buildPoolPayload()),
           { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
@@ -154,6 +193,8 @@ export default async function handler(request) {
             { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
           );
         }
+        await dbDeleteGateFromSupabase(targetGateId);
+        await dbSyncGatePoolToSupabase(getRawPoolList());
         return new Response(
           JSON.stringify(buildPoolPayload()),
           { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
@@ -164,6 +205,7 @@ export default async function handler(request) {
         const rawPool = getRawPoolList();
         const toTest = targetGateId ? rawPool.filter(g => g.id === targetGateId) : rawPool;
         const results = await Promise.all(toTest.map(g => testGateHealth(g)));
+        await dbSyncGatePoolToSupabase(getRawPoolList());
 
         return new Response(
           JSON.stringify(buildPoolPayload({ results, testResult: results[0] || null })),

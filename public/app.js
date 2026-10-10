@@ -31,18 +31,55 @@ let oauthConfig = {
 };
 
 try {
+  // Xóa bộ nhớ dùng chung cũ từng gây trùng Master Key giữa 2 tài khoản
+  localStorage.removeItem('nexus_user_api_keys');
   const savedUser = localStorage.getItem('nexus_discord_user');
   if (savedUser) discordUser = JSON.parse(savedUser);
 } catch {
   discordUser = null;
 }
 
-try {
-  const savedKeys = localStorage.getItem('nexus_user_api_keys');
-  if (savedKeys) userApiKeys = JSON.parse(savedKeys);
-} catch {
-  userApiKeys = [];
+function getUserKeysStorageName(uid) {
+  const cleanUid = String(uid || discordUser?.id || '').trim();
+  return cleanUid ? `slk_user_keys_${cleanUid}` : '';
 }
+
+function filterKeysBelongingToUser(keysList = [], uid = '') {
+  const cleanUid = String(uid || discordUser?.id || '').trim();
+  if (!cleanUid || !Array.isArray(keysList)) return [];
+  const dcPrefix = `sk-dc-${cleanUid}-`;
+  const nxPrefix = `sk-nx-${cleanUid}-`;
+  return keysList.filter(k => {
+    const token = String(k?.token || '');
+    return token.startsWith(dcPrefix) || token.startsWith(nxPrefix);
+  });
+}
+
+function loadCachedKeysForCurrentUser() {
+  if (!discordUser?.id) {
+    userApiKeys = [];
+    return;
+  }
+  try {
+    const storageKey = getUserKeysStorageName(discordUser.id);
+    const saved = storageKey ? localStorage.getItem(storageKey) : null;
+    const parsed = saved ? JSON.parse(saved) : [];
+    userApiKeys = filterKeysBelongingToUser(parsed, discordUser.id);
+  } catch {
+    userApiKeys = [];
+  }
+}
+
+function saveCachedKeysForCurrentUser(list = userApiKeys) {
+  if (!discordUser?.id) return;
+  userApiKeys = filterKeysBelongingToUser(list, discordUser.id);
+  const storageKey = getUserKeysStorageName(discordUser.id);
+  if (storageKey) {
+    localStorage.setItem(storageKey, JSON.stringify(userApiKeys));
+  }
+}
+
+loadCachedKeysForCurrentUser();
 
 // Initialize Markdown parser
 if (window.marked) {
@@ -149,7 +186,12 @@ async function handleDiscordRedirectCallback() {
     localStorage.setItem('nexus_discord_user', JSON.stringify(discordUser));
     localStorage.setItem('nexus_discord_api_key', clientAccessToken);
 
-    ensureDefaultKeyInList(data.apiKey);
+    if (Array.isArray(data.keys) && data.keys.length > 0) {
+      saveCachedKeysForCurrentUser(data.keys);
+    } else {
+      loadCachedKeysForCurrentUser();
+      ensureDefaultKeyInList(data.apiKey);
+    }
   } catch (err) {
     showDiscordError(err.message);
     if (btn) {
@@ -160,17 +202,40 @@ async function handleDiscordRedirectCallback() {
 }
 
 function ensureDefaultKeyInList(masterKey) {
-  if (!masterKey) return;
+  if (!masterKey || !discordUser?.id) return;
+  userApiKeys = filterKeysBelongingToUser(userApiKeys, discordUser.id);
   const exists = userApiKeys.some(k => k.token === masterKey);
   if (!exists) {
     userApiKeys.unshift({
-      id: 'default_master',
+      id: `default_master_${discordUser.id}`,
+      discordId: discordUser.id,
       name: 'Mặc định (Discord Master Key)',
       token: masterKey,
       createdAt: new Date().toISOString(),
       isDefault: true,
     });
-    localStorage.setItem('nexus_user_api_keys', JSON.stringify(userApiKeys));
+  }
+  saveCachedKeysForCurrentUser(userApiKeys);
+}
+
+async function fetchUserApiKeysFromDatabase() {
+  if (!discordUser?.id || !clientAccessToken) return;
+  try {
+    const res = await fetch(`/api/keys?discordUserId=${encodeURIComponent(discordUser.id)}`, {
+      headers: {
+        'Authorization': `Bearer ${clientAccessToken}`,
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.keys) && data.keys.length > 0) {
+        saveCachedKeysForCurrentUser(data.keys);
+        renderApiKeysTable();
+        updateGatewayUrls();
+      }
+    }
+  } catch (err) {
+    console.warn('Could not sync user keys from database:', err);
   }
 }
 
@@ -184,6 +249,7 @@ function updateAuthUI() {
   const tabAdmin = document.getElementById('tab-admin');
 
   if (discordUser && clientAccessToken) {
+    loadCachedKeysForCurrentUser();
     ensureDefaultKeyInList(clientAccessToken);
 
     if (gate) gate.classList.add('hidden');
@@ -222,9 +288,11 @@ function updateAuthUI() {
 
     updateGatewayUrls();
     renderApiKeysTable();
+    fetchUserApiKeysFromDatabase();
     checkGatewayHealth();
     fetchAvailableModels();
   } else {
+    userApiKeys = [];
     if (gate) gate.classList.remove('hidden');
     if (userPill) {
       userPill.classList.add('hidden');
@@ -266,11 +334,12 @@ function logoutDiscord() {
   localStorage.removeItem('nexus_discord_api_key');
   discordUser = null;
   clientAccessToken = '';
+  userApiKeys = [];
   updateAuthUI();
 }
 
 // ------------------------------------------
-// Multi API Key Generator & Dashboard Table
+// Multi API Key Generator & Dashboard Table (Supabase + Discord ID Isolated)
 // ------------------------------------------
 async function handleCreateApiKey(e) {
   if (e && e.preventDefault) e.preventDefault();
@@ -300,8 +369,12 @@ async function handleCreateApiKey(e) {
       throw new Error(data.error || 'Không thể tạo API Key.');
     }
 
-    userApiKeys.unshift(data.key);
-    localStorage.setItem('nexus_user_api_keys', JSON.stringify(userApiKeys));
+    if (Array.isArray(data.keys) && data.keys.length > 0) {
+      saveCachedKeysForCurrentUser(data.keys);
+    } else if (data.key) {
+      userApiKeys.unshift(data.key);
+      saveCachedKeysForCurrentUser(userApiKeys);
+    }
 
     if (nameInput) nameInput.value = '';
     renderApiKeysTable();
@@ -318,8 +391,9 @@ function renderApiKeysTable() {
   if (!tbody) return;
 
   const baseUrl = getBaseUrl();
+  const visibleKeys = filterKeysBelongingToUser(userApiKeys, discordUser?.id);
 
-  if (userApiKeys.length === 0) {
+  if (visibleKeys.length === 0) {
     tbody.innerHTML = `
       <tr>
         <td colspan="5" class="py-6 text-center text-slate-500">Chưa có API Key nào. Hãy nhấn "+ Tạo API Key" ở góc trên.</td>
@@ -328,7 +402,7 @@ function renderApiKeysTable() {
     return;
   }
 
-  tbody.innerHTML = userApiKeys.map((item) => {
+  tbody.innerHTML = visibleKeys.map((item) => {
     const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : 'Hôm nay';
     return `
       <tr class="hover:bg-slate-800/30 transition-colors">
@@ -383,10 +457,26 @@ function copyKeyBundle(token) {
   });
 }
 
-function deleteApiKey(id) {
+async function deleteApiKey(id) {
   userApiKeys = userApiKeys.filter(k => k.id !== id);
-  localStorage.setItem('nexus_user_api_keys', JSON.stringify(userApiKeys));
+  saveCachedKeysForCurrentUser(userApiKeys);
   renderApiKeysTable();
+
+  if (discordUser?.id && clientAccessToken) {
+    try {
+      const res = await fetch(`/api/keys?id=${encodeURIComponent(id)}&discordUserId=${encodeURIComponent(discordUser.id)}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${clientAccessToken}`,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.keys)) {
+        saveCachedKeysForCurrentUser(data.keys);
+        renderApiKeysTable();
+      }
+    } catch {}
+  }
 }
 
 // ------------------------------------------
@@ -1431,26 +1521,49 @@ async function loadAdminPool(silent = false) {
 }
 
 function updateAdminPoolStats(data) {
-  const totalEl = document.getElementById('pool-total-gates');
-  const activeEl = document.getElementById('pool-active-gates');
+  const totalEl = document.getElementById('admin-total-gates') || document.getElementById('pool-total-gates');
+  const activeEl = document.getElementById('admin-active-gates') || document.getElementById('pool-active-gates');
+  const reqsEl = document.getElementById('admin-total-requests');
+  const errsEl = document.getElementById('admin-total-errors');
+  const envEl = document.getElementById('admin-env-export-code');
   const navBadge = document.getElementById('gates-count-badge');
+  const sbBadge = document.getElementById('supabase-status-badge');
+  const sbUrlInput = document.getElementById('admin-supabase-url');
 
   const total = data.total ?? adminGatesList.length;
   const active = data.active ?? adminGatesList.filter(g => g.enabled !== false).length;
+  const totalRequests = adminGatesList.reduce((sum, g) => sum + (Number(g.requests) || 0), 0);
+  const totalErrors = adminGatesList.reduce((sum, g) => sum + (Number(g.errors || g.failures) || 0), 0);
 
-  if (totalEl) totalEl.textContent = `${total} Gates`;
-  if (activeEl) activeEl.textContent = `${active} / ${total} Đang bật`;
+  if (totalEl) totalEl.textContent = `${total} Gate${total > 1 ? 's' : ''}`;
+  if (activeEl) activeEl.textContent = `${active} / ${total} Gate đang bật`;
+  if (reqsEl) reqsEl.textContent = `${totalRequests} Requests`;
+  if (errsEl) errsEl.textContent = `${totalErrors} lỗi phát sinh`;
+  if (envEl && data.envExport) envEl.textContent = data.envExport;
   if (navBadge) navBadge.textContent = active;
+
+  if (data.supabase && sbBadge) {
+    if (data.supabase.configured) {
+      sbBadge.className = 'px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-mono';
+      sbBadge.textContent = '✓ Đã kết nối Supabase';
+      if (sbUrlInput && !sbUrlInput.value && data.supabase.url) {
+        sbUrlInput.value = data.supabase.url;
+      }
+    } else {
+      sbBadge.className = 'px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-mono';
+      sbBadge.textContent = 'Đang chạy bộ nhớ tách biệt theo Discord ID (Chưa nhập Supabase)';
+    }
+  }
 }
 
 function renderAdminPoolTable() {
-  const tbody = document.getElementById('admin-pool-table-body');
+  const tbody = document.getElementById('admin-gates-table-body') || document.getElementById('admin-pool-table-body');
   if (!tbody) return;
 
   if (!adminGatesList.length) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" class="py-8 text-center text-slate-500">
+        <td colspan="7" class="py-8 text-center text-slate-500">
           Chưa có Gate nào trong Pool. Hãy thêm API Key vào ô bên trên.
         </td>
       </tr>
@@ -1472,6 +1585,8 @@ function renderAdminPoolTable() {
       ? `<span class="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-300 border border-rose-500/30 text-[11px] font-medium" title="${escapeHtml(gate.lastError || '')}">Lỗi Gate</span>`
       : '<span class="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium">Đang Chạy (Active)</span>';
 
+    const latencyText = gate.lastLatencyMs ? `${gate.lastLatencyMs} ms` : 'Sẵn sàng';
+
     return `
       <tr class="hover:bg-slate-800/35 transition-colors">
         <td class="py-3.5 px-3 font-medium text-white">
@@ -1489,6 +1604,9 @@ function renderAdminPoolTable() {
         </td>
         <td class="py-3.5 px-3" id="gate-status-cell-${gate.id}">
           ${statusBadge}
+        </td>
+        <td class="py-3.5 px-3 font-mono text-slate-300">
+          ${latencyText}
         </td>
         <td class="py-3.5 px-3 font-mono text-slate-300">
           <span class="text-emerald-400 font-bold">${gate.requests || 0}</span> reqs
@@ -1532,10 +1650,10 @@ async function handleAddGatesToPool(e) {
   if (e && e.preventDefault) e.preventDefault();
   if (!isCurrentUserOwnerAdmin()) return;
 
-  const nameInput = document.getElementById('admin-new-gate-name');
-  const urlInput = document.getElementById('admin-new-gate-url');
-  const keysInput = document.getElementById('admin-new-gate-keys');
-  const btn = document.getElementById('btn-add-gate');
+  const nameInput = document.getElementById('pool-gate-name') || document.getElementById('admin-new-gate-name');
+  const urlInput = document.getElementById('pool-gate-url') || document.getElementById('admin-new-gate-url');
+  const keysInput = document.getElementById('pool-gate-keys') || document.getElementById('admin-new-gate-keys');
+  const btn = document.getElementById('btn-add-pool-keys') || document.getElementById('btn-add-gate');
   const feedback = document.getElementById('admin-add-feedback');
 
   const rawKeys = (keysInput?.value || '').trim();
@@ -1589,6 +1707,115 @@ async function handleAddGatesToPool(e) {
   } finally {
     if (btn) btn.disabled = false;
   }
+}
+
+async function handleSaveSupabaseConfig(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (!isCurrentUserOwnerAdmin()) return;
+
+  const urlInput = document.getElementById('admin-supabase-url');
+  const keyInput = document.getElementById('admin-supabase-key');
+  const btn = document.getElementById('btn-save-supabase');
+  const feedback = document.getElementById('admin-supabase-feedback');
+
+  const supabaseUrl = (urlInput?.value || '').trim();
+  const supabaseKey = (keyInput?.value || '').trim();
+  if (!supabaseUrl || !supabaseKey) return;
+
+  if (btn) btn.disabled = true;
+  if (feedback) feedback.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/admin/pool', {
+      method: 'POST',
+      headers: getAdminRequestHeaders(),
+      body: JSON.stringify({
+        action: 'save_supabase',
+        supabaseUrl,
+        supabaseKey,
+        discordUserId: discordUser?.id || '',
+      }),
+    });
+
+    const data = await res.json();
+    updateAdminPoolStats(data);
+
+    const t = data.supabaseTest || {};
+    if (feedback) {
+      if (t.connected && t.tablesReady) {
+        feedback.className = 'mt-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs';
+        feedback.innerHTML = `✓ Đã kết nối thành công tới Supabase Database (<code>${escapeHtml(supabaseUrl)}</code>) và đồng bộ bảng <code>slk_users</code>, <code>slk_api_keys</code>, <code>slk_gate_pool</code>!`;
+        fetchUserApiKeysFromDatabase();
+      } else if (t.connected && !t.tablesReady) {
+        feedback.className = 'mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs';
+        feedback.innerHTML = `⚠ Đã kết nối Supabase nhưng chưa tạo bảng! Hãy nhấn nút <strong>"Copy SQL Tạo Bảng"</strong> ở góc trên và chạy trong mục <strong>SQL Editor</strong> của Supabase.`;
+      } else {
+        feedback.className = 'mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs';
+        feedback.textContent = `Lỗi kết nối Supabase: ${t.error || 'Vui lòng kiểm tra lại URL và API Key.'}`;
+      }
+      feedback.classList.remove('hidden');
+    }
+  } catch (err) {
+    if (feedback) {
+      feedback.className = 'mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs';
+      feedback.textContent = `Lỗi: ${err.message}`;
+      feedback.classList.remove('hidden');
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function copySupabaseSqlSchema() {
+  const sql = `-- Chạy đoạn SQL này trong mục "SQL Editor" trên Supabase Dashboard:
+CREATE TABLE IF NOT EXISTS public.slk_users (
+  discord_id TEXT PRIMARY KEY,
+  username TEXT NOT NULL,
+  global_name TEXT,
+  avatar_url TEXT,
+  is_admin BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.slk_api_keys (
+  id TEXT PRIMARY KEY,
+  discord_id TEXT NOT NULL REFERENCES public.slk_users(discord_id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  is_default BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.slk_gate_pool (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  base_url TEXT NOT NULL DEFAULT 'https://api.hcnsec.cn/v1',
+  api_key TEXT NOT NULL,
+  masked_key TEXT NOT NULL,
+  enabled BOOLEAN DEFAULT TRUE,
+  is_primary BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'online',
+  requests BIGINT DEFAULT 0,
+  errors BIGINT DEFAULT 0,
+  last_latency_ms INTEGER,
+  last_used_at TIMESTAMPTZ,
+  added_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.slk_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.slk_api_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.slk_gate_pool ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "slk_users_all" ON public.slk_users;
+CREATE POLICY "slk_users_all" ON public.slk_users FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "slk_api_keys_all" ON public.slk_api_keys;
+CREATE POLICY "slk_api_keys_all" ON public.slk_api_keys FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "slk_gate_pool_all" ON public.slk_gate_pool;
+CREATE POLICY "slk_gate_pool_all" ON public.slk_gate_pool FOR ALL USING (true) WITH CHECK (true);`;
+
+  navigator.clipboard.writeText(sql).then(() => {
+    alert('Đã sao chép đoạn SQL tạo bảng Supabase! Hãy dán vào mục "SQL Editor" trên Supabase và nhấn Run.');
+  });
 }
 
 async function toggleAdminGate(id) {
@@ -1698,7 +1925,7 @@ async function testAllAdminGates() {
 
   if (btnAll) {
     btnAll.disabled = false;
-    btnAll.innerHTML = `<i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-400"></i><span>Kiểm Tra Tất Cả Gates</span>`;
+    btnAll.innerHTML = `<i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-400"></i><span>Ping Kiểm Tra Tất Cả Gates</span>`;
     if (window.lucide) lucide.createIcons();
   }
 }

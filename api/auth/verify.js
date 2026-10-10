@@ -4,6 +4,11 @@ import {
   DEFAULT_DISCORD_CLIENT_SECRET,
   generateDiscordUserApiKey,
 } from '../_utils.js';
+import {
+  dbUpsertDiscordUser,
+  dbGetUserApiKeys,
+  getSupabaseConfig,
+} from '../_supabase.js';
 
 export const config = {
   runtime: 'edge',
@@ -87,16 +92,23 @@ export default async function handler(request) {
       ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`
       : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(discordUser.id) >> 22n) % 6}.png`;
 
+    const userProfile = {
+      id: discordUser.id,
+      username: discordUser.username,
+      global_name: discordUser.global_name || discordUser.username,
+      avatar_url: avatarUrl,
+    };
+
+    await dbUpsertDiscordUser(userProfile);
+    const userKeys = await dbGetUserApiKeys(discordUser.id);
+
     return new Response(
       JSON.stringify({
         success: true,
-        user: {
-          id: discordUser.id,
-          username: discordUser.username,
-          global_name: discordUser.global_name || discordUser.username,
-          avatar_url: avatarUrl,
-        },
+        user: userProfile,
         apiKey: apiKey,
+        keys: userKeys,
+        supabaseConfigured: getSupabaseConfig().configured,
       }),
       {
         status: 200,
@@ -113,3 +125,4 @@ export default async function handler(request) {
     );
   }
 }
+

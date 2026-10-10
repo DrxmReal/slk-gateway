@@ -21,6 +21,18 @@ import {
   isAllowedAdminDiscordId,
   extractVerifiedDiscordUserId,
 } from './api/_utils.js';
+import {
+  getSupabaseConfig,
+  setRuntimeSupabaseConfig,
+  testSupabaseConnection,
+  dbUpsertDiscordUser,
+  dbGetUserApiKeys,
+  dbCreateUserApiKey,
+  dbDeleteUserApiKey,
+  dbLoadGatePoolFromSupabase,
+  dbSyncGatePoolToSupabase,
+  dbDeleteGateFromSupabase,
+} from './api/_supabase.js';
 import { probeSingleModel } from './api/model-status.js';
 import { testGateHealth } from './api/admin/pool.js';
 
@@ -187,6 +199,7 @@ const server = http.createServer(async (req, res) => {
     const buildPoolPayload = (extra = {}) => {
       const rawPool = getRawPoolList();
       const list = getPublicPoolList();
+      const sbCfg = getSupabaseConfig();
       return {
         success: true,
         pool: list,
@@ -194,6 +207,10 @@ const server = http.createServer(async (req, res) => {
         total: list.length,
         active: list.filter(g => g.enabled !== false).length,
         envExport: rawPool.map(g => g.apiKey).join(','),
+        supabase: {
+          configured: sbCfg.configured,
+          url: sbCfg.url,
+        },
         ...extra,
       };
     };
@@ -204,6 +221,10 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(403, { 'Content-Type': 'application/json', ...CORS_HEADERS });
         res.end(JSON.stringify({ success: false, error: 'Forbidden: Chỉ Admin Discord ID 1207080545159487498 mới được xem Admin Pool.' }));
         return;
+      }
+      const sbGates = await dbLoadGatePoolFromSupabase();
+      if (sbGates && sbGates.length > 0) {
+        initKeyPoolIfNeeded(sbGates);
       }
       res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
       res.end(JSON.stringify(buildPoolPayload()));
@@ -229,8 +250,25 @@ const server = http.createServer(async (req, res) => {
         const targetGateId = body.gateId || body.id;
 
         if (action === 'verify') {
+          const sbGates = await dbLoadGatePoolFromSupabase();
+          if (sbGates && sbGates.length > 0) {
+            initKeyPoolIfNeeded(sbGates);
+          }
           res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
           res.end(JSON.stringify(buildPoolPayload({ isAdmin: true })));
+          return;
+        }
+
+        if (action === 'save_supabase') {
+          const sbUrl = (body.supabaseUrl || '').trim();
+          const sbKey = (body.supabaseKey || '').trim();
+          const testRes = await testSupabaseConnection(sbUrl, sbKey);
+          if (testRes.connected) {
+            setRuntimeSupabaseConfig(sbUrl, sbKey);
+            await dbSyncGatePoolToSupabase(getRawPoolList());
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+          res.end(JSON.stringify(buildPoolPayload({ supabaseTest: testRes })));
           return;
         }
 
@@ -238,6 +276,7 @@ const server = http.createServer(async (req, res) => {
           const added = addGatesToPool(body.keys || '', (body.name || 'Gate').trim(), (body.baseUrl || '').trim());
           await Promise.allSettled(added.map(g => testGateHealth(g)));
           saveKeyPoolToDisk();
+          await dbSyncGatePoolToSupabase(getRawPoolList());
 
           res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
           res.end(JSON.stringify(buildPoolPayload({ addedCount: added.length })));
@@ -247,6 +286,7 @@ const server = http.createServer(async (req, res) => {
         if (action === 'toggle') {
           toggleGateInPool(targetGateId, body.enabled);
           saveKeyPoolToDisk();
+          await dbSyncGatePoolToSupabase(getRawPoolList());
           res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
           res.end(JSON.stringify(buildPoolPayload()));
           return;
@@ -260,6 +300,8 @@ const server = http.createServer(async (req, res) => {
             return;
           }
           saveKeyPoolToDisk();
+          await dbDeleteGateFromSupabase(targetGateId);
+          await dbSyncGatePoolToSupabase(getRawPoolList());
           res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
           res.end(JSON.stringify(buildPoolPayload()));
           return;
@@ -270,6 +312,7 @@ const server = http.createServer(async (req, res) => {
           const toTest = targetGateId ? rawPool.filter(g => g.id === targetGateId) : rawPool;
           const results = await Promise.all(toTest.map(g => testGateHealth(g)));
           saveKeyPoolToDisk();
+          await dbSyncGatePoolToSupabase(getRawPoolList());
 
           res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
           res.end(JSON.stringify(buildPoolPayload({ results, testResult: results[0] || null })));
@@ -311,8 +354,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Create New API Key in Dashboard
-  if (pathname === '/api/keys' && req.method === 'POST') {
+  // User API Keys Endpoint (GET / POST / DELETE with Supabase + Discord ID Isolation)
+  if (pathname === '/api/keys') {
     const authorized = await checkNodeAuth(req);
     if (!authorized) {
       res.writeHead(401, { 'Content-Type': 'application/json', ...CORS_HEADERS });
@@ -320,33 +363,82 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    try {
-      const body = await readJsonBody(req);
-      const discordUserId = String(body.discordUserId || '').trim();
-      const keyName = String(body.name || 'API Key mới').trim();
+    const authHeader = req.headers['authorization'] || '';
+    const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const verifiedDiscordId = await extractVerifiedDiscordUserId(bearerToken);
 
-      if (!discordUserId) {
-        res.writeHead(400, { 'Content-Type': 'application/json', ...CORS_HEADERS });
-        res.end(JSON.stringify({ success: false, error: 'Thiếu Discord User ID.' }));
-        return;
-      }
-
-      const newKey = await generateCustomDiscordApiKey(discordUserId);
+    if (req.method === 'GET') {
+      const targetUserId = verifiedDiscordId || parsedUrl.searchParams.get('discordUserId') || '';
+      const keys = await dbGetUserApiKeys(targetUserId);
       res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
       res.end(JSON.stringify({
         success: true,
-        key: {
-          id: `key_${Date.now()}`,
-          name: keyName,
-          token: newKey,
-          createdAt: new Date().toISOString(),
-        }
+        discordUserId: targetUserId,
+        keys,
+        supabaseConfigured: getSupabaseConfig().configured,
       }));
-    } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'application/json', ...CORS_HEADERS });
-      res.end(JSON.stringify({ success: false, error: err.message }));
+      return;
     }
-    return;
+
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const discordUserId = verifiedDiscordId || String(body.discordUserId || '').trim();
+        const keyName = String(body.name || 'API Key mới').trim();
+
+        if (!discordUserId) {
+          res.writeHead(400, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+          res.end(JSON.stringify({ success: false, error: 'Thiếu Discord User ID.' }));
+          return;
+        }
+
+        const newToken = await generateCustomDiscordApiKey(discordUserId);
+        const createdKey = await dbCreateUserApiKey(discordUserId, {
+          id: `key_${discordUserId}_${Date.now()}`,
+          name: keyName,
+          token: newToken,
+          createdAt: new Date().toISOString(),
+        });
+        const allKeys = await dbGetUserApiKeys(discordUserId);
+
+        res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+        res.end(JSON.stringify({
+          success: true,
+          key: createdKey,
+          keys: allKeys,
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      try {
+        let keyId = parsedUrl.searchParams.get('id') || '';
+        let discordUserId = verifiedDiscordId || parsedUrl.searchParams.get('discordUserId') || '';
+        if (!keyId) {
+          try {
+            const body = await readJsonBody(req);
+            keyId = body.id || '';
+            discordUserId = discordUserId || body.discordUserId || '';
+          } catch {}
+        }
+
+        await dbDeleteUserApiKey(discordUserId, keyId);
+        const allKeys = await dbGetUserApiKeys(discordUserId);
+        res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+        res.end(JSON.stringify({
+          success: true,
+          keys: allKeys,
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+      return;
+    }
   }
 
   // Discord Verify Endpoint
@@ -408,16 +500,23 @@ const server = http.createServer(async (req, res) => {
         ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`
         : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(discordUser.id) >> 22n) % 6}.png`;
 
+      const userProfile = {
+        id: discordUser.id,
+        username: discordUser.username,
+        global_name: discordUser.global_name || discordUser.username,
+        avatar_url: avatarUrl,
+      };
+
+      await dbUpsertDiscordUser(userProfile);
+      const userKeys = await dbGetUserApiKeys(discordUser.id);
+
       res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
       res.end(JSON.stringify({
         success: true,
-        user: {
-          id: discordUser.id,
-          username: discordUser.username,
-          global_name: discordUser.global_name || discordUser.username,
-          avatar_url: avatarUrl,
-        },
+        user: userProfile,
         apiKey,
+        keys: userKeys,
+        supabaseConfigured: getSupabaseConfig().configured,
       }));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json', ...CORS_HEADERS });

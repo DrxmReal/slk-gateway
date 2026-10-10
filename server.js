@@ -10,8 +10,17 @@ import {
   generateDiscordUserApiKey,
   generateCustomDiscordApiKey,
   verifyDiscordUserApiKey,
+  initKeyPoolIfNeeded,
+  getPublicPoolList,
+  getRawPoolList,
+  addGatesToPool,
+  toggleGateInPool,
+  removeGateFromPool,
+  selectGatesForRequest,
+  checkAdminSecret,
 } from './api/_utils.js';
 import { probeSingleModel } from './api/model-status.js';
+import { testGateHealth } from './api/admin/pool.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +45,34 @@ function loadEnvFile() {
 }
 loadEnvFile();
 
+// Persistent Key Pool file for local / VPS runtime
+const poolFilePath = path.join(__dirname, 'key-pool.json');
+function loadSavedKeyPool() {
+  try {
+    if (fs.existsSync(poolFilePath)) {
+      const raw = JSON.parse(fs.readFileSync(poolFilePath, 'utf8'));
+      if (Array.isArray(raw) && raw.length > 0) {
+        initKeyPoolIfNeeded(raw);
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load key-pool.json:', err.message);
+  }
+  initKeyPoolIfNeeded();
+}
+
+function saveKeyPoolToDisk() {
+  try {
+    const rawPool = getRawPoolList();
+    fs.writeFileSync(poolFilePath, JSON.stringify(rawPool, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Could not save key-pool.json:', err.message);
+  }
+}
+
+loadSavedKeyPool();
+
 const PORT = process.env.PORT || 3000;
 const UPSTREAM_BASE_URL = (process.env.UPSTREAM_BASE_URL || 'https://api.hcnsec.cn/v1').replace(/\/+$/, '');
 const UPSTREAM_API_KEY = (process.env.UPSTREAM_API_KEY || 'sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5KRiS4MGl').trim();
@@ -54,7 +91,7 @@ const MIME_TYPES = {
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Custom-Key, Accept, User-Agent',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Custom-Key, X-Admin-Secret, Accept, User-Agent',
   'Access-Control-Max-Age': '86400',
 };
 
@@ -87,7 +124,6 @@ async function readJsonBody(req) {
 }
 
 const server = http.createServer(async (req, res) => {
-  // CORS Preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, CORS_HEADERS);
     res.end();
@@ -99,6 +135,7 @@ const server = http.createServer(async (req, res) => {
 
   // Health check
   if (pathname === '/health' || pathname === '/api/health') {
+    const pool = getPublicPoolList();
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
     res.end(JSON.stringify({
       status: 'healthy',
@@ -106,6 +143,8 @@ const server = http.createServer(async (req, res) => {
       upstream: UPSTREAM_BASE_URL,
       total_models: FREE_MODELS.length,
       free_models: FREE_MODELS,
+      active_gates: pool.filter(g => g.enabled).length,
+      total_gates: pool.length,
       discord_auth_required: true,
       timestamp: new Date().toISOString()
     }));
@@ -125,6 +164,115 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Admin Key Pool Management Endpoint (/api/admin/pool)
+  if (pathname === '/api/admin/pool') {
+    const headerSecret = req.headers['x-admin-secret'] || parsedUrl.searchParams.get('secret') || '';
+    const authorized = (headerSecret && checkAdminSecret(headerSecret)) || (await checkNodeAuth(req));
+    if (!authorized) {
+      res.writeHead(401, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.end(JSON.stringify({ success: false, error: 'Unauthorized: Vui lòng đăng nhập Discord hoặc nhập đúng mật khẩu Admin.' }));
+      return;
+    }
+
+    const buildPoolPayload = (extra = {}) => {
+      const rawPool = getRawPoolList();
+      const list = getPublicPoolList();
+      return {
+        success: true,
+        pool: list,
+        gates: list,
+        total: list.length,
+        active: list.filter(g => g.enabled !== false).length,
+        envExport: rawPool.map(g => g.apiKey).join(','),
+        ...extra,
+      };
+    };
+
+    if (req.method === 'GET') {
+      const discordUserId = parsedUrl.searchParams.get('discordUserId') || '';
+      if (!checkAdminSecret(headerSecret, discordUserId)) {
+        res.writeHead(403, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+        res.end(JSON.stringify({ success: false, error: 'Forbidden: Sai mật khẩu Admin.' }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.end(JSON.stringify(buildPoolPayload()));
+      return;
+    }
+
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const secret = body.adminSecret || headerSecret;
+        const discordUserId = body.discordUserId || '';
+
+        if (!checkAdminSecret(secret, discordUserId)) {
+          res.writeHead(403, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+          res.end(JSON.stringify({
+            success: false,
+            error: 'Mật khẩu Admin không đúng! (Mặc định: slk-admin hoặc nhập Master API Key của bạn).',
+          }));
+          return;
+        }
+
+        const action = body.action || 'verify';
+        const targetGateId = body.gateId || body.id;
+
+        if (action === 'verify') {
+          res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+          res.end(JSON.stringify(buildPoolPayload({ isAdmin: true })));
+          return;
+        }
+
+        if (action === 'add') {
+          const added = addGatesToPool(body.keys || '', (body.name || 'Gate').trim(), (body.baseUrl || '').trim());
+          await Promise.allSettled(added.map(g => testGateHealth(g)));
+          saveKeyPoolToDisk();
+
+          res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+          res.end(JSON.stringify(buildPoolPayload({ addedCount: added.length })));
+          return;
+        }
+
+        if (action === 'toggle') {
+          toggleGateInPool(targetGateId, body.enabled);
+          saveKeyPoolToDisk();
+          res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+          res.end(JSON.stringify(buildPoolPayload()));
+          return;
+        }
+
+        if (action === 'delete') {
+          const removed = removeGateFromPool(targetGateId);
+          if (removed === false) {
+            res.writeHead(400, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+            res.end(JSON.stringify({ success: false, error: 'Phải giữ lại ít nhất 1 Gate hoạt động trong Pool.' }));
+            return;
+          }
+          saveKeyPoolToDisk();
+          res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+          res.end(JSON.stringify(buildPoolPayload()));
+          return;
+        }
+
+        if (action === 'test') {
+          const rawPool = getRawPoolList();
+          const toTest = targetGateId ? rawPool.filter(g => g.id === targetGateId) : rawPool;
+          const results = await Promise.all(toTest.map(g => testGateHealth(g)));
+          saveKeyPoolToDisk();
+
+          res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+          res.end(JSON.stringify(buildPoolPayload({ results, testResult: results[0] || null })));
+          return;
+        }
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+        return;
+      }
+    }
+  }
+
   // Real-time Model Status & Probe Endpoint
   if (pathname === '/api/model-status') {
     const authorized = await checkNodeAuth(req);
@@ -136,7 +284,9 @@ const server = http.createServer(async (req, res) => {
 
     const targetModel = parsedUrl.searchParams.get('model');
     if (targetModel) {
-      const probe = await probeSingleModel(targetModel, UPSTREAM_BASE_URL, UPSTREAM_API_KEY);
+      const gates = selectGatesForRequest();
+      const activeGate = gates[0] || { baseUrl: UPSTREAM_BASE_URL, apiKey: UPSTREAM_API_KEY };
+      const probe = await probeSingleModel(targetModel, activeGate.baseUrl, activeGate.apiKey);
       res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
       res.end(JSON.stringify({ success: true, probe, timestamp: new Date().toISOString() }));
       return;
@@ -283,7 +433,6 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Extract subpath
     let subpath = pathname.replace(/^\/api\/v1\/?/, '').replace(/^\/v1\/?/, '');
 
     // Nếu gọi /v1/models -> chỉ trả về danh sách các model FREE kèm thông tin Status
@@ -297,8 +446,6 @@ const server = http.createServer(async (req, res) => {
       }));
       return;
     }
-
-    const targetUrl = `${UPSTREAM_BASE_URL}/${subpath}${parsedUrl.search}`;
 
     // Read body if POST/PUT & ép buộc chỉ dùng model FREE
     let bodyPayload = null;
@@ -325,30 +472,75 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    try {
-      const upstreamRes = await fetch(targetUrl, {
-        method: req.method,
-        headers: {
-          'Authorization': `Bearer ${UPSTREAM_API_KEY}`,
-          'Content-Type': req.headers['content-type'] || 'application/json',
-          'Accept': req.headers['accept'] || 'application/json',
-        },
-        body: bodyPayload,
-      });
+    // Lấy danh sách Gates theo Round-Robin và tự động Failover nếu Gate lỗi
+    const candidateGates = selectGatesForRequest();
+    let lastError = null;
+    let lastUpstreamRes = null;
 
-      // Prepare response headers
+    for (const gate of candidateGates) {
+      const startTime = Date.now();
+      const targetUrl = `${gate.baseUrl}/${subpath}${parsedUrl.search}`;
+
+      try {
+        gate.requests += 1;
+        gate.lastUsedAt = new Date().toISOString();
+
+        const upstreamRes = await fetch(targetUrl, {
+          method: req.method,
+          headers: {
+            'Authorization': `Bearer ${gate.apiKey}`,
+            'Content-Type': req.headers['content-type'] || 'application/json',
+            'Accept': req.headers['accept'] || 'application/json',
+          },
+          body: bodyPayload,
+        });
+
+        gate.lastLatencyMs = Date.now() - startTime;
+
+        if ([401, 402, 403, 429, 500, 502, 503, 504].includes(upstreamRes.status) && candidateGates.length > 1) {
+          gate.errors += 1;
+          gate.status = upstreamRes.status === 429 ? 'rate_limited' : 'error';
+          lastUpstreamRes = upstreamRes;
+          continue;
+        }
+
+        gate.status = 'online';
+        const responseHeaders = { ...CORS_HEADERS, 'X-SLK-Gate': gate.name };
+        upstreamRes.headers.forEach((val, key) => {
+          if (!['content-encoding', 'transfer-encoding', 'connection'].includes(key.toLowerCase())) {
+            responseHeaders[key] = val;
+          }
+        });
+
+        res.writeHead(upstreamRes.status, responseHeaders);
+
+        if (upstreamRes.body) {
+          const reader = upstreamRes.body.getReader();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            res.write(value);
+          }
+        }
+        res.end();
+        return;
+      } catch (err) {
+        gate.errors += 1;
+        gate.status = 'error';
+        lastError = err;
+      }
+    }
+
+    if (lastUpstreamRes) {
       const responseHeaders = { ...CORS_HEADERS };
-      upstreamRes.headers.forEach((val, key) => {
+      lastUpstreamRes.headers.forEach((val, key) => {
         if (!['content-encoding', 'transfer-encoding', 'connection'].includes(key.toLowerCase())) {
           responseHeaders[key] = val;
         }
       });
-
-      res.writeHead(upstreamRes.status, responseHeaders);
-
-      // Stream body chunks to client
-      if (upstreamRes.body) {
-        const reader = upstreamRes.body.getReader();
+      res.writeHead(lastUpstreamRes.status, responseHeaders);
+      if (lastUpstreamRes.body) {
+        const reader = lastUpstreamRes.body.getReader();
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -356,17 +548,17 @@ const server = http.createServer(async (req, res) => {
         }
       }
       res.end();
-    } catch (err) {
-      console.error('Proxy request error:', err);
-      res.writeHead(502, { 'Content-Type': 'application/json', ...CORS_HEADERS });
-      res.end(JSON.stringify({
-        error: {
-          message: `Proxy Error: ${err.message}`,
-          type: 'upstream_error',
-          code: 'gateway_error'
-        }
-      }));
+      return;
     }
+
+    res.writeHead(502, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+    res.end(JSON.stringify({
+      error: {
+        message: `Proxy Error: Tất cả các Gate trong Pool đều không phản hồi: ${lastError?.message || 'Unknown error'}`,
+        type: 'upstream_error',
+        code: 'gateway_error'
+      }
+    }));
     return;
   }
 
@@ -392,10 +584,11 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
+  const pool = getPublicPoolList();
   console.log(`====================================================`);
-  console.log(`🚀 SLK Gateway (Free Models Only + Model Status) at: http://localhost:${PORT}`);
+  console.log(`🚀 SLK Gateway (Free Models + Multi-Gate Pool) at: http://localhost:${PORT}`);
   console.log(`🌐 Base API URL: http://localhost:${PORT}/v1`);
+  console.log(`🔑 Active Upstream Gates in Pool: ${pool.length}`);
   console.log(`🆓 Free Models (${FREE_MODELS.length}): ${FREE_MODELS.join(', ')}`);
-  console.log(`🔒 Discord Client ID: ${process.env.DISCORD_CLIENT_ID || DEFAULT_DISCORD_CLIENT_ID}`);
   console.log(`====================================================`);
 });

@@ -17,6 +17,8 @@ let chatTemperature = parseFloat(localStorage.getItem('nexus_temperature') || '0
 let discordUser = null;
 let clientAccessToken = localStorage.getItem('nexus_discord_api_key') || '';
 let userApiKeys = [];
+let adminSecret = localStorage.getItem('slk_admin_secret') || '';
+let adminGatesList = [];
 
 let oauthConfig = {
   clientId: '1558375997416677426',
@@ -188,6 +190,9 @@ function updateAuthUI() {
     renderApiKeysTable();
     checkGatewayHealth();
     fetchAvailableModels();
+    if (adminSecret) {
+      loadAdminPool(true);
+    }
   } else {
     if (gate) gate.classList.remove('hidden');
     if (userPill) {
@@ -455,6 +460,10 @@ function switchTab(tabId) {
     activeMobileBtn.classList.remove('text-slate-400');
   }
 
+  if (tabId === 'admin' && adminSecret) {
+    loadAdminPool(true);
+  }
+
   if (window.lucide) lucide.createIcons();
 }
 
@@ -477,13 +486,16 @@ function switchCodeLang(lang) {
 async function checkGatewayHealth() {
   const statusPill = document.getElementById('status-pill');
   const statusText = document.getElementById('status-text');
+  const gatesBadge = document.getElementById('gates-count-badge');
 
   try {
     const res = await fetch('/health');
     if (res.ok) {
       const data = await res.json();
       const count = data.total_models || 7;
-      if (statusText) statusText.textContent = `${count} Free Models Online`;
+      const activeGates = data.active_gates || 1;
+      if (statusText) statusText.textContent = `${count} Free Models • ${activeGates} Gate${activeGates > 1 ? 's' : ''}`;
+      if (gatesBadge) gatesBadge.textContent = activeGates;
       if (statusPill) statusPill.className = 'hidden lg:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-400 whitespace-nowrap transition-all';
     } else {
       throw new Error(`Status ${res.status}`);
@@ -521,7 +533,7 @@ async function fetchAvailableModels() {
         const opt = document.createElement('option');
         opt.value = m.id;
         const uptime = m.status?.uptime ? `${m.status.uptime}%` : 'Online';
-        opt.textContent = `${m.id} (${uptime} • 0¥ Free)`;
+        opt.textContent = `${m.id} (${uptime} • 0₫ Free)`;
         select.appendChild(opt);
       });
 
@@ -673,7 +685,7 @@ function renderModelsStatusGrid() {
            <div><span class="text-[10px] text-slate-500 block">Đầu vào</span><strong class="text-white font-mono">${m.price_input}</strong></div>
            <div><span class="text-[10px] text-slate-500 block">Đầu ra</span><strong class="text-white font-mono">${m.price_output}</strong></div>
          </div>`
-      : `<div class="mt-1"><strong class="text-sm text-white font-mono">${m.price_input || '0 ¥ / yêu cầu'}</strong></div>`;
+      : `<div class="mt-1"><strong class="text-sm text-white font-mono">${m.price_input || '0 ₫ / yêu cầu'}</strong></div>`;
 
     const tagsStr = (m.tags || ['Tools']).join(', ');
     const endpointsStr = (m.supported_endpoint_types || ['openai']).join(', ');
@@ -1259,3 +1271,394 @@ function copySnippet(codeBlockId) {
     alert('Đã sao chép đoạn code vào bộ nhớ tạm!');
   });
 }
+
+// ==========================================
+// Admin Pool Management (Multi-Gate Load Balancer)
+// ==========================================
+async function handleAdminUnlock(e) {
+  if (e && e.preventDefault) e.preventDefault();
+
+  const input = document.getElementById('admin-secret-input');
+  const errEl = document.getElementById('admin-auth-error');
+  const btn = document.getElementById('btn-admin-unlock');
+
+  const secretCandidate = (input?.value || '').trim();
+  if (!secretCandidate) return;
+
+  if (errEl) errEl.classList.add('hidden');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>Đang kiểm tra quyền Admin...</span>`;
+  }
+
+  try {
+    const res = await fetch('/api/admin/pool', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Secret': secretCandidate,
+      },
+      body: JSON.stringify({
+        action: 'verify',
+        discordUserId: discordUser?.id || '',
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Mật khẩu Admin hoặc Master Key không hợp lệ.');
+    }
+
+    adminSecret = secretCandidate;
+    localStorage.setItem('slk_admin_secret', adminSecret);
+    adminGatesList = data.pool || [];
+
+    showAdminDashboardUI(true);
+    updateAdminPoolStats(data);
+    renderAdminPoolTable();
+    checkGatewayHealth();
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<i data-lucide="unlock" class="w-4 h-4"></i><span>Mở Khóa Quản Trị Admin Pool</span>`;
+      if (window.lucide) lucide.createIcons();
+    }
+  }
+}
+
+function lockAdminSession() {
+  adminSecret = '';
+  localStorage.removeItem('slk_admin_secret');
+  showAdminDashboardUI(false);
+}
+
+function showAdminDashboardUI(unlocked) {
+  const lockScreen = document.getElementById('admin-lock-screen');
+  const dashboard = document.getElementById('admin-pool-dashboard');
+  if (unlocked) {
+    if (lockScreen) lockScreen.classList.add('hidden');
+    if (dashboard) dashboard.classList.remove('hidden');
+  } else {
+    if (lockScreen) lockScreen.classList.remove('hidden');
+    if (dashboard) dashboard.classList.add('hidden');
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+async function loadAdminPool(silent = false) {
+  if (!adminSecret) {
+    showAdminDashboardUI(false);
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/admin/pool?discordUserId=${encodeURIComponent(discordUser?.id || '')}`, {
+      headers: {
+        'X-Admin-Secret': adminSecret,
+      },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      if (!silent) alert(data.error || 'Phiên Admin đã hết hạn.');
+      lockAdminSession();
+      return;
+    }
+
+    adminGatesList = data.pool || [];
+    showAdminDashboardUI(true);
+    updateAdminPoolStats(data);
+    renderAdminPoolTable();
+  } catch (err) {
+    console.warn('Error loading admin pool:', err);
+  }
+}
+
+function updateAdminPoolStats(data) {
+  const totalEl = document.getElementById('pool-total-gates');
+  const activeEl = document.getElementById('pool-active-gates');
+  const navBadge = document.getElementById('gates-count-badge');
+
+  const total = data.total ?? adminGatesList.length;
+  const active = data.active ?? adminGatesList.filter(g => g.enabled !== false).length;
+
+  if (totalEl) totalEl.textContent = `${total} Gates`;
+  if (activeEl) activeEl.textContent = `${active} / ${total} Đang bật`;
+  if (navBadge) navBadge.textContent = active;
+}
+
+function renderAdminPoolTable() {
+  const tbody = document.getElementById('admin-pool-table-body');
+  if (!tbody) return;
+
+  if (!adminGatesList.length) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="py-8 text-center text-slate-500">
+          Chưa có Gate nào trong Pool. Hãy thêm API Key vào ô bên trên.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = adminGatesList.map((gate) => {
+    const isEnabled = gate.enabled !== false;
+    const statusDot = !isEnabled
+      ? '<span class="w-2 h-2 rounded-full bg-slate-500"></span>'
+      : gate.status === 'error'
+      ? '<span class="w-2 h-2 rounded-full bg-rose-400"></span>'
+      : '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>';
+
+    const statusBadge = !isEnabled
+      ? '<span class="px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700 text-[11px] font-medium">Đã Tạm Tắt</span>'
+      : gate.status === 'error'
+      ? `<span class="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-300 border border-rose-500/30 text-[11px] font-medium" title="${escapeHtml(gate.lastError || '')}">Lỗi Gate</span>`
+      : '<span class="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium">Đang Chạy (Active)</span>';
+
+    return `
+      <tr class="hover:bg-slate-800/35 transition-colors">
+        <td class="py-3.5 px-3 font-medium text-white">
+          <div class="flex items-center space-x-2">
+            ${statusDot}
+            <span>${escapeHtml(gate.name)}</span>
+            ${gate.isPrimary ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono">PRIMARY</span>' : ''}
+          </div>
+        </td>
+        <td class="py-3.5 px-3 font-mono text-amber-300">
+          <span class="bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg">${escapeHtml(gate.maskedKey)}</span>
+        </td>
+        <td class="py-3.5 px-3 font-mono text-indigo-300">
+          <span class="bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg">${escapeHtml(gate.baseUrl)}</span>
+        </td>
+        <td class="py-3.5 px-3" id="gate-status-cell-${gate.id}">
+          ${statusBadge}
+        </td>
+        <td class="py-3.5 px-3 font-mono text-slate-300">
+          <span class="text-emerald-400 font-bold">${gate.requests || 0}</span> reqs
+          ${gate.failures ? `<span class="text-rose-400 ml-1">(${gate.failures} lỗi)</span>` : ''}
+        </td>
+        <td class="py-3.5 px-3 text-right">
+          <div class="flex items-center justify-end space-x-1.5">
+            <button
+              id="btn-test-gate-${gate.id}"
+              onclick="testSingleAdminGate('${gate.id}')"
+              class="px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-[11px] font-medium transition-all"
+              title="Kiểm tra tốc độ và kết nối của Gate này"
+            >
+              Test Gate
+            </button>
+            <button
+              onclick="toggleAdminGate('${gate.id}')"
+              class="px-2.5 py-1.5 rounded-lg ${isEnabled ? 'bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border-slate-700' : 'bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border-emerald-500/30'} border text-[11px] font-medium transition-all"
+            >
+              ${isEnabled ? 'Tạm tắt' : 'Bật lại'}
+            </button>
+            ${!gate.isPrimary ? `
+              <button
+                onclick="deleteAdminGate('${gate.id}')"
+                class="p-1.5 rounded-lg bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all"
+                title="Xóa Gate khỏi Pool"
+              >
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            ` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+async function handleAddGatesToPool(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (!adminSecret) return;
+
+  const nameInput = document.getElementById('admin-new-gate-name');
+  const urlInput = document.getElementById('admin-new-gate-url');
+  const keysInput = document.getElementById('admin-new-gate-keys');
+  const btn = document.getElementById('btn-add-gate');
+  const feedback = document.getElementById('admin-add-feedback');
+
+  const rawKeys = (keysInput?.value || '').trim();
+  if (!rawKeys) {
+    alert('Vui lòng dán ít nhất 1 Upstream API Key (sk-...) vào ô!');
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  if (feedback) feedback.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/admin/pool', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Secret': adminSecret,
+      },
+      body: JSON.stringify({
+        action: 'add',
+        name: (nameInput?.value || '').trim(),
+        baseUrl: (urlInput?.value || 'https://api.hcnsec.cn/v1').trim(),
+        keys: rawKeys,
+        discordUserId: discordUser?.id || '',
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Không thể thêm API Key vào Pool.');
+    }
+
+    adminGatesList = data.pool || [];
+    updateAdminPoolStats(data);
+    renderAdminPoolTable();
+    checkGatewayHealth();
+
+    if (keysInput) keysInput.value = '';
+    if (nameInput) nameInput.value = '';
+
+    if (feedback) {
+      feedback.className = 'mt-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs';
+      feedback.innerHTML = data.addedCount > 0
+        ? `✓ Đã nạp thành công <strong>${data.addedCount} Gate mới</strong> vào Pool! Hiện có <strong>${data.active} Gates</strong> đang chạy song song.`
+        : `Thông báo: API Key này đã tồn tại sẵn trong Pool (${data.total} Gates).`;
+      feedback.classList.remove('hidden');
+    }
+  } catch (err) {
+    if (feedback) {
+      feedback.className = 'mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs';
+      feedback.textContent = `Lỗi: ${err.message}`;
+      feedback.classList.remove('hidden');
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function toggleAdminGate(id) {
+  if (!adminSecret) return;
+  try {
+    const res = await fetch('/api/admin/pool', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Secret': adminSecret,
+      },
+      body: JSON.stringify({
+        action: 'toggle',
+        id,
+        discordUserId: discordUser?.id || '',
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      adminGatesList = data.pool || [];
+      updateAdminPoolStats(data);
+      renderAdminPoolTable();
+      checkGatewayHealth();
+    }
+  } catch (err) {
+    alert(`Lỗi cập nhật Gate: ${err.message}`);
+  }
+}
+
+async function deleteAdminGate(id) {
+  if (!adminSecret) return;
+  try {
+    const res = await fetch('/api/admin/pool', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Secret': adminSecret,
+      },
+      body: JSON.stringify({
+        action: 'delete',
+        id,
+        discordUserId: discordUser?.id || '',
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      adminGatesList = data.pool || [];
+      updateAdminPoolStats(data);
+      renderAdminPoolTable();
+      checkGatewayHealth();
+    } else {
+      alert(data.error || 'Không thể xóa Gate này.');
+    }
+  } catch (err) {
+    alert(`Lỗi xóa Gate: ${err.message}`);
+  }
+}
+
+async function testSingleAdminGate(id) {
+  if (!adminSecret) return;
+  const btn = document.getElementById(`btn-test-gate-${id}`);
+  const statusCell = document.getElementById(`gate-status-cell-${id}`);
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Đang ping...';
+  }
+
+  try {
+    const res = await fetch('/api/admin/pool', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Secret': adminSecret,
+      },
+      body: JSON.stringify({
+        action: 'test',
+        id,
+        discordUserId: discordUser?.id || '',
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      adminGatesList = data.pool || [];
+      updateAdminPoolStats(data);
+      renderAdminPoolTable();
+
+      const updatedCell = document.getElementById(`gate-status-cell-${id}`);
+      if (updatedCell && data.testResult) {
+        updatedCell.innerHTML = data.testResult.online
+          ? `<span class="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium">Online (${data.testResult.latencyMs}ms)</span>`
+          : `<span class="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-300 border border-rose-500/30 text-[11px] font-medium">Lỗi (${escapeHtml(data.testResult.status)})</span>`;
+      }
+    }
+  } catch {
+    if (statusCell) {
+      statusCell.innerHTML = `<span class="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-300 border border-rose-500/30 text-[11px] font-medium">Lỗi kết nối</span>`;
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Test Gate';
+    }
+  }
+}
+
+async function testAllAdminGates() {
+  const btnAll = document.getElementById('btn-test-all-gates');
+  if (btnAll) {
+    btnAll.disabled = true;
+    btnAll.innerHTML = `<span>Đang kiểm tra tất cả Gates...</span>`;
+  }
+
+  await Promise.allSettled(adminGatesList.map(g => testSingleAdminGate(g.id)));
+
+  if (btnAll) {
+    btnAll.disabled = false;
+    btnAll.innerHTML = `<i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-400"></i><span>Kiểm Tra Tất Cả Gates</span>`;
+    if (window.lucide) lucide.createIcons();
+  }
+}
+

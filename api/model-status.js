@@ -5,6 +5,7 @@ import {
   corsHeaders,
   handleOptions,
   checkAuth,
+  selectGatesForRequest,
 } from './_utils.js';
 
 export const config = {
@@ -96,14 +97,17 @@ export default async function handler(request) {
     );
   }
 
-  const upstreamBase = (process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, '');
-  const upstreamKey = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).trim();
+  const gates = selectGatesForRequest();
+  const activeGate = gates[0] || {
+    baseUrl: (process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, ''),
+    apiKey: (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).trim(),
+  };
 
   const url = new URL(request.url);
   const targetModel = url.searchParams.get('model');
 
   if (targetModel) {
-    const probe = await probeSingleModel(targetModel, upstreamBase, upstreamKey);
+    const probe = await probeSingleModel(targetModel, activeGate.baseUrl, activeGate.apiKey);
     return new Response(
       JSON.stringify({ success: true, probe, timestamp: new Date().toISOString() }),
       { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }

@@ -4,7 +4,10 @@ export const DEFAULT_UPSTREAM_KEY = 'sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5
 export const DEFAULT_DISCORD_CLIENT_ID = '1558375997416677426';
 export const DEFAULT_DISCORD_CLIENT_SECRET = 'KYXTuhr666qbvi8OVKU-qyrZ-ZMpLbx0';
 
-// Danh sách các model 100% FREE (0 ¥) được phép sử dụng trên SLK Gateway
+// Mật khẩu Admin mặc định (có thể đổi qua biến môi trường ADMIN_SECRET trên Vercel)
+export const DEFAULT_ADMIN_SECRET = 'slk-admin';
+
+// Danh sách các model 100% FREE (0 ₫) được phép sử dụng trên SLK Gateway
 export const FREE_MODELS = [
   'auto',
   'DeepSeek-V4-Flash',
@@ -27,8 +30,8 @@ export const MODELS_CATALOG = [
     provider_code: 'router',
     free: true,
     price_type: 'free',
-    price_label: 'Miễn phí (0 ¥)',
-    price_input: '0 ¥ / yêu cầu',
+    price_label: 'Miễn phí (0 ₫)',
+    price_input: '0 ₫ / yêu cầu',
     price_output: '',
     tags: ['Reasoning', 'Tools', 'vision', 'free', '1m'],
     description: 'Định tuyến thông minh tự động chọn mô hình Free có chất lượng tốt nhất, tốc độ nhanh nhất và ổn định nhất.',
@@ -50,8 +53,8 @@ export const MODELS_CATALOG = [
     provider_code: 'deepseek',
     free: true,
     price_type: 'free',
-    price_label: 'Miễn phí (0 ¥)',
-    price_input: '0 ¥ / yêu cầu',
+    price_label: 'Miễn phí (0 ₫)',
+    price_input: '0 ₫ / yêu cầu',
     price_output: '',
     tags: ['Reasoning', 'Tools', '1m', 'free'],
     description: 'DeepSeek-V4-Flash dựa trên kiến trúc MoE (284B tham số, kích hoạt 13B), hỗ trợ ngữ cảnh lên tới 1M token (Miễn phí 100%).',
@@ -73,8 +76,8 @@ export const MODELS_CATALOG = [
     provider_code: 'zhipu',
     free: true,
     price_type: 'free',
-    price_label: 'Miễn phí (0 ¥)',
-    price_input: '0 ¥ / yêu cầu',
+    price_label: 'Miễn phí (0 ₫)',
+    price_input: '0 ₫ / yêu cầu',
     price_output: '',
     tags: ['Reasoning', 'Tools', '1m', 'free'],
     description: 'GLM-5.3-Flash (320B-A10B MoE) hỗ trợ đa phương thức, ngữ cảnh 1M token tốc độ cao (Miễn phí 100%).',
@@ -96,8 +99,8 @@ export const MODELS_CATALOG = [
     provider_code: 'moonshot',
     free: true,
     price_type: 'free',
-    price_label: 'Miễn phí (0 ¥)',
-    price_input: '0 ¥ / yêu cầu',
+    price_label: 'Miễn phí (0 ₫)',
+    price_input: '0 ₫ / yêu cầu',
     price_output: '',
     tags: ['Reasoning', 'Tools', 'vision', 'free'],
     description: 'Kimi K3 của Moonshot AI là mô hình đa phương thức 2.8T tham số sử dụng kiến trúc chú ý tuyến tính KDA (Miễn phí 100%).',
@@ -119,11 +122,11 @@ export const MODELS_CATALOG = [
     provider_code: 'longcat',
     free: true,
     price_type: 'free',
-    price_label: 'Miễn phí (0 ¥)',
-    price_input: '0 ¥ / yêu cầu',
+    price_label: 'Miễn phí (0 ₫)',
+    price_input: '0 ₫ / yêu cầu',
     price_output: '',
     tags: ['Reasoning', 'Tools', 'free'],
-    description: 'LongCat 2.5 Preview của Meituan tiếp tục kiến trúc MoE 1.6T tham số, tốc độ cao và hoàn toàn miễn phí (0 ¥ / yêu cầu).',
+    description: 'LongCat 2.5 Preview của Meituan tiếp tục kiến trúc MoE 1.6T tham số, tốc độ cao và hoàn toàn miễn phí (0 ₫ / yêu cầu).',
     supported_endpoint_types: ['openai', 'anthropic'],
     status: {
       uptime: 99.88,
@@ -142,11 +145,11 @@ export const MODELS_CATALOG = [
     provider_code: 'mimo',
     free: true,
     price_type: 'free',
-    price_label: 'Miễn phí (0 ¥)',
-    price_input: '0 ¥ / yêu cầu',
+    price_label: 'Miễn phí (0 ₫)',
+    price_input: '0 ₫ / yêu cầu',
     price_output: '',
     tags: ['Reasoning', 'Tools', 'open', 'free'],
-    description: 'MiMo V2.6 Flash của Xiaomi là mô hình suy luận đa phương thức mã nguồn mở MoE 309B tham số (0 ¥ / yêu cầu).',
+    description: 'MiMo V2.6 Flash của Xiaomi là mô hình suy luận đa phương thức mã nguồn mở MoE 309B tham số (0 ₫ / yêu cầu).',
     supported_endpoint_types: ['openai'],
     status: {
       uptime: 79.72,
@@ -165,11 +168,11 @@ export const MODELS_CATALOG = [
     provider_code: 'sensenova',
     free: true,
     price_type: 'free',
-    price_label: 'Miễn phí (0 ¥)',
-    price_input: '0 ¥ / yêu cầu',
+    price_label: 'Miễn phí (0 ₫)',
+    price_input: '0 ₫ / yêu cầu',
     price_output: '',
     tags: ['Tools', 'free'],
-    description: 'SenseNova 6.8 Flash Lite của SenseTime phản hồi cực nhanh (~3.3s), ổn định cao và hoàn toàn miễn phí (0 ¥ / yêu cầu).',
+    description: 'SenseNova 6.8 Flash Lite của SenseTime phản hồi cực nhanh (~3.3s), ổn định cao và hoàn toàn miễn phí (0 ₫ / yêu cầu).',
     supported_endpoint_types: ['openai'],
     status: {
       uptime: 97.80,
@@ -186,7 +189,7 @@ export const FREE_MODELS_METADATA = MODELS_CATALOG;
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Custom-Key, Accept, User-Agent',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Custom-Key, X-Admin-Secret, Accept, User-Agent',
   'Access-Control-Max-Age': '86400',
 };
 
@@ -195,6 +198,199 @@ export function handleOptions() {
     status: 204,
     headers: corsHeaders,
   });
+}
+
+// ==========================================================
+// MULTI-GATE UPSTREAM API KEY POOL & SMART LOAD BALANCER
+// ==========================================================
+let keyPoolInitialized = false;
+let roundRobinCounter = 0;
+const upstreamKeyPool = [];
+
+export function maskApiKey(key = '') {
+  const clean = String(key).trim();
+  if (clean.length <= 12) return clean.slice(0, 4) + '****';
+  return `${clean.slice(0, 8)}...${clean.slice(-4)}`;
+}
+
+export function initKeyPoolIfNeeded(initialItems = null) {
+  if (Array.isArray(initialItems) && initialItems.length > 0) {
+    upstreamKeyPool.length = 0;
+    initialItems.forEach((item, idx) => {
+      if (item && item.apiKey) {
+        upstreamKeyPool.push({
+          id: item.id || `gate_${idx + 1}`,
+          name: item.name || `Gate #${idx + 1}`,
+          baseUrl: (item.baseUrl || process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, ''),
+          apiKey: String(item.apiKey).trim(),
+          maskedKey: maskApiKey(item.apiKey),
+          enabled: item.enabled !== false,
+          status: item.status || 'online',
+          requests: Number(item.requests || 0),
+          errors: Number(item.errors || 0),
+          lastLatencyMs: item.lastLatencyMs || null,
+          lastUsedAt: item.lastUsedAt || null,
+          addedAt: item.addedAt || new Date().toISOString(),
+        });
+      }
+    });
+    keyPoolInitialized = true;
+    return upstreamKeyPool;
+  }
+
+  if (keyPoolInitialized && upstreamKeyPool.length > 0) {
+    return upstreamKeyPool;
+  }
+
+  const defaultBase = (process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, '');
+  const rawEnvKeys = [
+    process.env.UPSTREAM_API_KEYS || '',
+    process.env.UPSTREAM_API_KEY || '',
+    DEFAULT_UPSTREAM_KEY,
+  ].join(',');
+
+  const uniqueKeys = Array.from(
+    new Set(
+      rawEnvKeys
+        .split(/[\n,;]+/)
+        .map(k => k.trim())
+        .filter(Boolean)
+    )
+  );
+
+  upstreamKeyPool.length = 0;
+  uniqueKeys.forEach((k, idx) => {
+    upstreamKeyPool.push({
+      id: `gate_${idx + 1}`,
+      name: idx === 0 ? 'Master Gate #1 (Mặc định)' : `Gate #${idx + 1}`,
+      baseUrl: defaultBase,
+      apiKey: k,
+      maskedKey: maskApiKey(k),
+      enabled: true,
+      status: 'online',
+      requests: 0,
+      errors: 0,
+      lastLatencyMs: null,
+      lastUsedAt: null,
+      addedAt: new Date().toISOString(),
+    });
+  });
+
+  keyPoolInitialized = true;
+  return upstreamKeyPool;
+}
+
+export function getPublicPoolList() {
+  initKeyPoolIfNeeded();
+  return upstreamKeyPool.map((g, idx) => ({
+    id: g.id,
+    name: g.name,
+    baseUrl: g.baseUrl,
+    maskedKey: g.maskedKey,
+    enabled: g.enabled,
+    isPrimary: idx === 0,
+    status: g.status,
+    requests: g.requests,
+    errors: g.errors,
+    failures: g.errors,
+    lastLatencyMs: g.lastLatencyMs,
+    lastUsedAt: g.lastUsedAt,
+    addedAt: g.addedAt,
+  }));
+}
+
+export function getRawPoolList() {
+  initKeyPoolIfNeeded();
+  return upstreamKeyPool;
+}
+
+export function addGatesToPool(rawKeysInput, customNamePrefix = 'Gate', customBaseUrl = '') {
+  initKeyPoolIfNeeded();
+  const baseUrl = (customBaseUrl || process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, '');
+  const keys = Array.isArray(rawKeysInput)
+    ? rawKeysInput
+    : String(rawKeysInput || '')
+        .split(/[\n,;]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+  const added = [];
+  for (const k of keys) {
+    const existing = upstreamKeyPool.find(g => g.apiKey === k && g.baseUrl === baseUrl);
+    if (existing) {
+      existing.enabled = true;
+      continue;
+    }
+    const nextNum = upstreamKeyPool.length + 1;
+    const newGate = {
+      id: `gate_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      name: keys.length === 1 && customNamePrefix && customNamePrefix !== 'Gate' ? customNamePrefix : `${customNamePrefix || 'Gate'} #${nextNum}`,
+      baseUrl,
+      apiKey: k,
+      maskedKey: maskApiKey(k),
+      enabled: true,
+      status: 'online',
+      requests: 0,
+      errors: 0,
+      lastLatencyMs: null,
+      lastUsedAt: null,
+      addedAt: new Date().toISOString(),
+    };
+    upstreamKeyPool.push(newGate);
+    added.push(newGate);
+  }
+  return added;
+}
+
+export function toggleGateInPool(gateId, enabled) {
+  initKeyPoolIfNeeded();
+  const gate = upstreamKeyPool.find(g => g.id === gateId);
+  if (!gate) return null;
+  gate.enabled = typeof enabled === 'boolean' ? enabled : !gate.enabled;
+  return gate;
+}
+
+export function removeGateFromPool(gateId) {
+  initKeyPoolIfNeeded();
+  if (upstreamKeyPool.length <= 1) {
+    throw new Error('Không thể xóa Gate cuối cùng trong Pool (cần tối thiểu 1 Gate hoạt động).');
+  }
+  const idx = upstreamKeyPool.findIndex(g => g.id === gateId);
+  if (idx === -1) return false;
+  upstreamKeyPool.splice(idx, 1);
+  return true;
+}
+
+// Chọn danh sách Gate theo thuật toán Round-Robin để tự động cân bằng tải & Failover
+export function selectGatesForRequest() {
+  initKeyPoolIfNeeded();
+  const active = upstreamKeyPool.filter(g => g.enabled);
+  const poolToUse = active.length > 0 ? active : upstreamKeyPool;
+
+  const startIdx = roundRobinCounter % poolToUse.length;
+  roundRobinCounter = (roundRobinCounter + 1) % 1000000;
+
+  const ordered = [];
+  for (let i = 0; i < poolToUse.length; i++) {
+    ordered.push(poolToUse[(startIdx + i) % poolToUse.length]);
+  }
+  return ordered;
+}
+
+export function checkAdminSecret(candidateSecret = '', discordUserId = '') {
+  const expectedSecret = (process.env.ADMIN_SECRET || DEFAULT_ADMIN_SECRET).trim();
+  const masterKey = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).trim();
+  const adminIds = (process.env.ADMIN_DISCORD_IDS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  if (discordUserId && adminIds.includes(discordUserId)) {
+    return true;
+  }
+  const cleanCandidate = String(candidateSecret || '').trim();
+  if (!cleanCandidate) return false;
+  return cleanCandidate === expectedSecret || cleanCandidate === masterKey;
 }
 
 async function sha256Hex(input) {
@@ -223,7 +419,6 @@ export async function generateCustomDiscordApiKey(discordUserId, customSalt = ''
 export async function verifyDiscordUserApiKey(token) {
   if (!token) return false;
 
-  // Kiểm tra định dạng sk-dc-<uid>-<sig>
   if (token.startsWith('sk-dc-')) {
     const parts = token.split('-');
     if (parts.length < 4) return false;
@@ -232,7 +427,6 @@ export async function verifyDiscordUserApiKey(token) {
     return token === expectedKey;
   }
 
-  // Kiểm tra định dạng key tạo thêm trong Dashboard: sk-nx-<uid>-<salt>-<sig>
   if (token.startsWith('sk-nx-')) {
     const parts = token.split('-');
     if (parts.length < 5) return false;
@@ -253,13 +447,11 @@ export async function checkAuth(request) {
 
   const candidate = token || customHeader;
 
-  // Chấp nhận key sinh từ tài khoản Discord (sk-dc-... hoặc sk-nx-...)
   if (candidate && (candidate.startsWith('sk-dc-') || candidate.startsWith('sk-nx-'))) {
     const validDiscordKey = await verifyDiscordUserApiKey(candidate);
     if (validDiscordKey) return true;
   }
 
-  // Nếu admin có đặt CUSTOM_ACCESS_KEY cố định
   if (customKey && candidate === customKey) {
     return true;
   }
@@ -317,26 +509,13 @@ export async function proxyRequest(request, targetPath) {
     );
   }
 
-  const upstreamBase = (process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, '');
-  const upstreamKey = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).trim();
-
-  // Extract query string (ignoring Vercel's rewrite param `path`)
+  // Extract query string
   const url = new URL(request.url);
   const searchParams = new URLSearchParams(url.searchParams);
   searchParams.delete('path');
   const queryStr = searchParams.toString();
-  const targetUrl = `${upstreamBase}/${cleanPath}${queryStr ? '?' + queryStr : ''}`;
 
-  const forwardHeaders = new Headers();
-  forwardHeaders.set('Authorization', `Bearer ${upstreamKey}`);
-  forwardHeaders.set('Content-Type', request.headers.get('content-type') || 'application/json');
-  forwardHeaders.set('Accept', request.headers.get('accept') || 'application/json');
-
-  const fetchOptions = {
-    method: request.method,
-    headers: forwardHeaders,
-  };
-
+  let bodyPayload = null;
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     try {
       const rawBody = await request.text();
@@ -347,47 +526,97 @@ export async function proxyRequest(request, targetPath) {
           if (!parsed.model || !FREE_MODELS.includes(parsed.model)) {
             parsed.model = 'DeepSeek-V4-Flash';
           }
-          fetchOptions.body = JSON.stringify(parsed);
+          bodyPayload = JSON.stringify(parsed);
         } catch {
-          fetchOptions.body = rawBody;
+          bodyPayload = rawBody;
         }
       } else {
-        fetchOptions.body = rawBody;
+        bodyPayload = rawBody;
       }
     } catch {
       // Body empty or unreadable
     }
   }
 
-  try {
-    const upstreamRes = await fetch(targetUrl, fetchOptions);
+  // Lấy danh sách Gates theo Round-Robin và tự động Failover nếu Gate gặp lỗi 401/402/429/5xx
+  const candidateGates = selectGatesForRequest();
+  let lastError = null;
+  let lastUpstreamRes = null;
 
-    const resHeaders = new Headers(upstreamRes.headers);
+  for (const gate of candidateGates) {
+    const startTime = Date.now();
+    const targetUrl = `${gate.baseUrl}/${cleanPath}${queryStr ? '?' + queryStr : ''}`;
+
+    const forwardHeaders = new Headers();
+    forwardHeaders.set('Authorization', `Bearer ${gate.apiKey}`);
+    forwardHeaders.set('Content-Type', request.headers.get('content-type') || 'application/json');
+    forwardHeaders.set('Accept', request.headers.get('accept') || 'application/json');
+
+    try {
+      gate.requests += 1;
+      gate.lastUsedAt = new Date().toISOString();
+
+      const upstreamRes = await fetch(targetUrl, {
+        method: request.method,
+        headers: forwardHeaders,
+        body: bodyPayload,
+      });
+
+      gate.lastLatencyMs = Date.now() - startTime;
+
+      // Nếu Gate hiện tại bị hết hạn/rate-limit/lỗi server và còn Gate dự phòng -> tự động chuyển Gate tiếp theo
+      if ([401, 402, 403, 429, 500, 502, 503, 504].includes(upstreamRes.status) && candidateGates.length > 1) {
+        gate.errors += 1;
+        gate.status = upstreamRes.status === 429 ? 'rate_limited' : 'error';
+        lastUpstreamRes = upstreamRes;
+        continue;
+      }
+
+      gate.status = 'online';
+      const resHeaders = new Headers(upstreamRes.headers);
+      for (const [key, value] of Object.entries(corsHeaders)) {
+        resHeaders.set(key, value);
+      }
+      resHeaders.set('X-SLK-Gate', gate.name);
+
+      return new Response(upstreamRes.body, {
+        status: upstreamRes.status,
+        statusText: upstreamRes.statusText,
+        headers: resHeaders,
+      });
+    } catch (err) {
+      gate.errors += 1;
+      gate.status = 'error';
+      lastError = err;
+    }
+  }
+
+  if (lastUpstreamRes) {
+    const resHeaders = new Headers(lastUpstreamRes.headers);
     for (const [key, value] of Object.entries(corsHeaders)) {
       resHeaders.set(key, value);
     }
-
-    return new Response(upstreamRes.body, {
-      status: upstreamRes.status,
-      statusText: upstreamRes.statusText,
+    return new Response(lastUpstreamRes.body, {
+      status: lastUpstreamRes.status,
+      statusText: lastUpstreamRes.statusText,
       headers: resHeaders,
     });
-  } catch (err) {
-    return new Response(
-      JSON.stringify({
-        error: {
-          message: `Proxy Error: Failed to reach upstream API: ${err.message}`,
-          type: 'upstream_error',
-          code: 'gateway_error'
-        }
-      }),
-      {
-        status: 502,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders,
-        }
-      }
-    );
   }
+
+  return new Response(
+    JSON.stringify({
+      error: {
+        message: `Proxy Error: Tất cả các Gate trong Pool đều không phản hồi: ${lastError?.message || 'Unknown error'}`,
+        type: 'upstream_error',
+        code: 'gateway_error'
+      }
+    }),
+    {
+      status: 502,
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders,
+      }
+    }
+  );
 }

@@ -908,6 +908,7 @@ function getProviderBadgeHtml(providerCode, providerName) {
     qwen: { bg: 'bg-violet-600/20 text-violet-400 border-violet-500/30', letter: 'QW' },
     sensenova: { bg: 'bg-cyan-600/20 text-cyan-400 border-cyan-500/30', letter: 'SN' },
     opencode: { bg: 'bg-fuchsia-600/20 text-fuchsia-400 border-fuchsia-500/30', letter: '🐰' },
+    unorouter: { bg: 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30', letter: 'UNO' },
   };
   const st = styles[providerCode] || { bg: 'bg-slate-800 text-slate-300 border-slate-700', letter: (providerName || 'AI').slice(0, 2).toUpperCase() };
   return `<div class="w-9 h-9 rounded-lg ${st.bg} border flex items-center justify-center font-mono font-bold text-xs shrink-0">${st.letter}</div>`;

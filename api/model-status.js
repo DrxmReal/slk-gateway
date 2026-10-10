@@ -3,6 +3,9 @@ import {
   DEFAULT_UPSTREAM_KEY,
   OPENCODE_BASE_URL,
   OPENCODE_API_KEY,
+  UNOROUTER_BASE_URL,
+  UNOROUTER_API_KEY,
+  UNOROUTER_MODELS,
   MODELS_CATALOG,
   corsHeaders,
   handleOptions,
@@ -110,8 +113,19 @@ export default async function handler(request) {
 
   if (targetModel) {
     const isSpaceBunny = targetModel === 'space-bunny-free';
-    const probeBase = isSpaceBunny ? OPENCODE_BASE_URL : activeGate.baseUrl;
-    const probeKey = isSpaceBunny ? OPENCODE_API_KEY : activeGate.apiKey;
+    const isUnoRouter = UNOROUTER_MODELS.includes(targetModel);
+
+    let probeBase = activeGate.baseUrl;
+    let probeKey = activeGate.apiKey;
+
+    if (isSpaceBunny) {
+      probeBase = OPENCODE_BASE_URL;
+      probeKey = OPENCODE_API_KEY;
+    } else if (isUnoRouter) {
+      probeBase = UNOROUTER_BASE_URL;
+      probeKey = UNOROUTER_API_KEY;
+    }
+
     const probe = await probeSingleModel(targetModel, probeBase, probeKey);
     return new Response(
       JSON.stringify({ success: true, probe, timestamp: new Date().toISOString() }),

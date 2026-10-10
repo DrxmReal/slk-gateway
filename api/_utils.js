@@ -7,6 +7,10 @@ export const DEFAULT_UPSTREAM_KEY = 'sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5
 export const OPENCODE_BASE_URL = (process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/v1').replace(/\/+$/, '');
 export const OPENCODE_API_KEY = (process.env.OPENCODE_API_KEY || 'oc_sk_443b200450ba_9p00yqJGk3YTJiQ_9BVsGJVhS2cKp3f6').trim();
 
+// Cấu hình UnoRouter Gate (Step 5 Preview & Free Tier)
+export const UNOROUTER_BASE_URL = (process.env.UNOROUTER_BASE_URL || 'https://api.unorouter.com/v1').replace(/\/+$/, '');
+export const UNOROUTER_API_KEY = (process.env.UNOROUTER_API_KEY || 'sk-CjeXySzJR6H61RnHxW4bSx8tWH2q3DgsML26SNyXd3HrMkiD').trim();
+
 export const DEFAULT_DISCORD_CLIENT_ID = '1558375997416677426';
 export const DEFAULT_DISCORD_CLIENT_SECRET = 'KYXTuhr666qbvi8OVKU-qyrZ-ZMpLbx0';
 
@@ -14,8 +18,20 @@ export const DEFAULT_DISCORD_CLIENT_SECRET = 'KYXTuhr666qbvi8OVKU-qyrZ-ZMpLbx0';
 export const DEFAULT_ADMIN_SECRET = 'slk-admin';
 export const OWNER_ADMIN_DISCORD_ID = '1207080545159487498';
 
+// Danh sách model định tuyến qua UnoRouter
+export const UNOROUTER_MODELS = [
+  'step-5-preview:free',
+  'k2-horizon:free',
+  'nemotron-3-super-120b-a12b:free',
+  'agnes-3.0-flash:free',
+];
+
 // Danh sách model ĐƯỢC PHÉP sử dụng trên Gateway
 export const FREE_MODELS = [
+  'step-5-preview:free',
+  'k2-horizon:free',
+  'nemotron-3-super-120b-a12b:free',
+  'agnes-3.0-flash:free',
   'space-bunny-free',
   'auto',
   'glm-5.3',
@@ -26,9 +42,101 @@ export const FREE_MODELS = [
 export const ALL_MODELS = FREE_MODELS;
 
 // Model mặc định khi client không chỉ định (hoặc chỉ định model không hợp lệ)
-export const DEFAULT_MODEL = 'space-bunny-free';
+export const DEFAULT_MODEL = 'step-5-preview:free';
 
 export const MODELS_CATALOG = [
+  {
+    id: 'step-5-preview:free',
+    object: 'model',
+    created: 1791651000,
+    owned_by: 'StepFun',
+    provider: 'UnoRouter (StepFun)',
+    provider_code: 'unorouter',
+    free: true,
+    price_type: 'free',
+    price_label: '0 ₫ / yêu cầu',
+    price_input: '0 ₫ / yêu cầu',
+    price_output: '',
+    tags: ['Reasoning', 'Tools', 'free', 'stepfun'],
+    description: 'Step 5 Preview từ StepFun qua UnoRouter: mô hình ngôn ngữ lớn thế hệ mới, tối ưu suy luận logic phức tạp và xử lý tiếng Việt xuất sắc (0 ₫ / yêu cầu).',
+    supported_endpoint_types: ['openai'],
+    status: {
+      uptime: 98.20,
+      latency: '3.10s',
+      tps: '64.5t/s',
+      state: 'online',
+      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    }
+  },
+  {
+    id: 'k2-horizon:free',
+    object: 'model',
+    created: 1791651100,
+    owned_by: 'K2',
+    provider: 'UnoRouter (K2)',
+    provider_code: 'unorouter',
+    free: true,
+    price_type: 'free',
+    price_label: '0 ₫ / yêu cầu',
+    price_input: '0 ₫ / yêu cầu',
+    price_output: '',
+    tags: ['Reasoning', 'Fast', 'free'],
+    description: 'K2 Horizon từ UnoRouter: mô hình suy luận tốc độ cực nhanh, trả lời thông minh và hoàn toàn miễn phí (0 ₫ / yêu cầu).',
+    supported_endpoint_types: ['openai'],
+    status: {
+      uptime: 99.40,
+      latency: '1.80s',
+      tps: '92.0t/s',
+      state: 'online',
+      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    }
+  },
+  {
+    id: 'nemotron-3-super-120b-a12b:free',
+    object: 'model',
+    created: 1791651200,
+    owned_by: 'NVIDIA',
+    provider: 'UnoRouter (NVIDIA)',
+    provider_code: 'unorouter',
+    free: true,
+    price_type: 'free',
+    price_label: '0 ₫ / yêu cầu',
+    price_input: '0 ₫ / yêu cầu',
+    price_output: '',
+    tags: ['120B', 'MoE', 'Reasoning', 'free'],
+    description: 'NVIDIA Nemotron 3 Super 120B MoE qua UnoRouter: mô hình siêu khủng 120B tham số, chất lượng suy luận đẳng cấp (0 ₫ / yêu cầu).',
+    supported_endpoint_types: ['openai'],
+    status: {
+      uptime: 99.10,
+      latency: '2.50s',
+      tps: '78.5t/s',
+      state: 'online',
+      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    }
+  },
+  {
+    id: 'agnes-3.0-flash:free',
+    object: 'model',
+    created: 1791651300,
+    owned_by: 'Agnes',
+    provider: 'UnoRouter (Agnes)',
+    provider_code: 'unorouter',
+    free: true,
+    price_type: 'free',
+    price_label: '0 ₫ / yêu cầu',
+    price_input: '0 ₫ / yêu cầu',
+    price_output: '',
+    tags: ['Fast', 'Tools', 'free'],
+    description: 'Agnes 3.0 Flash từ UnoRouter: mô hình phản hồi siêu tốc, hỗ trợ phân tích dữ liệu và tác vụ nhanh (0 ₫ / yêu cầu).',
+    supported_endpoint_types: ['openai'],
+    status: {
+      uptime: 97.80,
+      latency: '1.50s',
+      tps: '105.0t/s',
+      state: 'online',
+      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    }
+  },
   {
     id: 'space-bunny-free',
     object: 'model',
@@ -584,14 +692,26 @@ export async function proxyRequest(request, targetPath) {
     chargeInfo = charge;
   }
 
-  // Lấy danh sách Gates theo Round-Robin; nếu gọi space-bunny-free thì điều hướng tới OpenCode Zen
+  // Lấy danh sách Gates theo Round-Robin; nếu gọi model chuyên biệt thì điều hướng tới Gate tương ứng
   const isSpaceBunny = requestModel === 'space-bunny-free';
+  const isUnoRouter = UNOROUTER_MODELS.includes(requestModel);
+
   const candidateGates = isSpaceBunny
     ? [{
         id: 'gate_opencode_zen',
         name: 'OpenCode Zen Gate',
         baseUrl: OPENCODE_BASE_URL,
         apiKey: OPENCODE_API_KEY,
+        enabled: true,
+        requests: 0,
+        errors: 0,
+      }]
+    : isUnoRouter
+    ? [{
+        id: 'gate_unorouter',
+        name: 'UnoRouter Gate',
+        baseUrl: UNOROUTER_BASE_URL,
+        apiKey: UNOROUTER_API_KEY,
         enabled: true,
         requests: 0,
         errors: 0,

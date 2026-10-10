@@ -20,6 +20,10 @@ export const DEFAULT_USER_BALANCE_VND = Number(
 
 // Phí cố định cho mỗi request theo model (₫ / lượt)
 export const MODEL_REQUEST_FEE_VND = {
+  'step-5-preview:free': 0,
+  'k2-horizon:free': 0,
+  'nemotron-3-super-120b-a12b:free': 0,
+  'agnes-3.0-flash:free': 0,
   'space-bunny-free': 0,
   'auto': 1000,
   'glm-5.3': 1000,
@@ -38,7 +42,13 @@ export function formatVnd(amount) {
 
 // Lấy phí cố định (₫) của 1 request theo model
 export function getRequestFeeVnd(model = '') {
-  if (model === 'space-bunny-free') return 0;
+  if (
+    model === 'step-5-preview:free' ||
+    model === 'k2-horizon:free' ||
+    model === 'nemotron-3-super-120b-a12b:free' ||
+    model === 'agnes-3.0-flash:free' ||
+    model === 'space-bunny-free'
+  ) return 0;
   const fee = MODEL_REQUEST_FEE_VND[model];
   return Number.isFinite(fee) && fee >= 0 ? fee : DEFAULT_REQUEST_FEE_VND;
 }

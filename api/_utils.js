@@ -1,6 +1,9 @@
 export const DEFAULT_UPSTREAM_URL = 'https://api.hcnsec.cn/v1';
 export const DEFAULT_UPSTREAM_KEY = 'sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5KRiS4MGl';
 
+export const DEFAULT_DISCORD_CLIENT_ID = '1558375997416677426';
+export const DEFAULT_DISCORD_CLIENT_SECRET = 'KYXTuhr666qbvi8OVKU-qyrZ-ZMpLbx0';
+
 // Danh sách các model 100% FREE (cost = 0) đã được kiểm chứng trên upstream
 export const FREE_MODELS = [
   'auto',

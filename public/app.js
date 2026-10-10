@@ -13,8 +13,8 @@ let chatTemperature = parseFloat(localStorage.getItem('nexus_temperature') || '0
 let discordUser = null;
 let clientAccessToken = localStorage.getItem('nexus_discord_api_key') || '';
 let oauthConfig = {
-  clientId: localStorage.getItem('nexus_discord_client_id') || '',
-  hasSecret: false,
+  clientId: '1558375997416677426',
+  hasSecret: true,
 };
 
 try {

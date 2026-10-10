@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import {
   FREE_MODELS,
   FREE_MODELS_METADATA,
+  DEFAULT_DISCORD_CLIENT_ID,
+  DEFAULT_DISCORD_CLIENT_SECRET,
   generateDiscordUserApiKey,
   verifyDiscordUserApiKey,
 } from './api/_utils.js';
@@ -24,7 +26,7 @@ function loadEnvFile() {
         if (idx !== -1) {
           const key = trimmed.slice(0, idx).trim();
           const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
-          process.env[key] = val;
+          if (val) process.env[key] = val;
         }
       }
     });
@@ -109,45 +111,8 @@ const server = http.createServer(async (req, res) => {
 
   // Discord OAuth2 Config Endpoint
   if (pathname === '/api/auth/config') {
-    if (req.method === 'POST') {
-      try {
-        const body = await readJsonBody(req);
-        if (body.clientId !== undefined) {
-          process.env.DISCORD_CLIENT_ID = String(body.clientId).trim();
-        }
-        if (body.clientSecret !== undefined) {
-          process.env.DISCORD_CLIENT_SECRET = String(body.clientSecret).trim();
-        }
-        // Save to .env file locally
-        let envText = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
-        const updateEnvVar = (key, val) => {
-          const regex = new RegExp(`^${key}=.*$`, 'm');
-          if (regex.test(envText)) {
-            envText = envText.replace(regex, `${key}=${val}`);
-          } else {
-            envText += `\n${key}=${val}`;
-          }
-        };
-        if (body.clientId !== undefined) updateEnvVar('DISCORD_CLIENT_ID', process.env.DISCORD_CLIENT_ID);
-        if (body.clientSecret !== undefined) updateEnvVar('DISCORD_CLIENT_SECRET', process.env.DISCORD_CLIENT_SECRET);
-        fs.writeFileSync(envPath, envText.trim() + '\n', 'utf8');
-
-        res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
-        res.end(JSON.stringify({
-          success: true,
-          configured: Boolean(process.env.DISCORD_CLIENT_ID),
-          clientId: process.env.DISCORD_CLIENT_ID || '',
-          hasSecret: Boolean(process.env.DISCORD_CLIENT_SECRET),
-        }));
-      } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json', ...CORS_HEADERS });
-        res.end(JSON.stringify({ success: false, error: e.message }));
-      }
-      return;
-    }
-
-    const clientId = (process.env.DISCORD_CLIENT_ID || '').trim();
-    const hasSecret = Boolean((process.env.DISCORD_CLIENT_SECRET || '').trim());
+    const clientId = (process.env.DISCORD_CLIENT_ID || DEFAULT_DISCORD_CLIENT_ID).trim();
+    const hasSecret = Boolean((process.env.DISCORD_CLIENT_SECRET || DEFAULT_DISCORD_CLIENT_SECRET).trim());
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
     res.end(JSON.stringify({
       configured: Boolean(clientId),
@@ -166,17 +131,8 @@ const server = http.createServer(async (req, res) => {
       const redirectUri = body.redirect_uri || '';
 
       if (!accessToken && code) {
-        const clientId = (process.env.DISCORD_CLIENT_ID || body.client_id || '').trim();
-        const clientSecret = (process.env.DISCORD_CLIENT_SECRET || '').trim();
-
-        if (!clientId || !clientSecret) {
-          res.writeHead(400, { 'Content-Type': 'application/json', ...CORS_HEADERS });
-          res.end(JSON.stringify({
-            success: false,
-            error: 'Thiếu DISCORD_CLIENT_ID hoặc DISCORD_CLIENT_SECRET.'
-          }));
-          return;
-        }
+        const clientId = (process.env.DISCORD_CLIENT_ID || body.client_id || DEFAULT_DISCORD_CLIENT_ID).trim();
+        const clientSecret = (process.env.DISCORD_CLIENT_SECRET || DEFAULT_DISCORD_CLIENT_SECRET).trim();
 
         const tokenParams = new URLSearchParams({
           client_id: clientId,
@@ -196,7 +152,7 @@ const server = http.createServer(async (req, res) => {
           res.writeHead(401, { 'Content-Type': 'application/json', ...CORS_HEADERS });
           res.end(JSON.stringify({
             success: false,
-            error: tokenData.error_description || 'Không thể đổi mã code với Discord.'
+            error: tokenData.error_description || 'Không thể đổi mã code với Discord. Hãy kiểm tra Redirect URI trong Discord Developer Portal.'
           }));
           return;
         }
@@ -374,6 +330,6 @@ server.listen(PORT, () => {
   console.log(`🚀 AI API Gateway (Discord Auth + Free Models) at: http://localhost:${PORT}`);
   console.log(`🌐 Base API URL: http://localhost:${PORT}/v1`);
   console.log(`🆓 Free Models: ${FREE_MODELS.join(', ')}`);
-  console.log(`🔒 Auth: Discord Login Required`);
+  console.log(`🔒 Discord Client ID: ${process.env.DISCORD_CLIENT_ID || DEFAULT_DISCORD_CLIENT_ID}`);
   console.log(`====================================================`);
 });

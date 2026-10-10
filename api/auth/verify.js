@@ -1,4 +1,9 @@
-import { corsHeaders, generateDiscordUserApiKey } from '../_utils.js';
+import {
+  corsHeaders,
+  DEFAULT_DISCORD_CLIENT_ID,
+  DEFAULT_DISCORD_CLIENT_SECRET,
+  generateDiscordUserApiKey,
+} from '../_utils.js';
 
 export const config = {
   runtime: 'edge',
@@ -24,18 +29,8 @@ export default async function handler(request) {
 
     // Nếu dùng Authorization Code Flow (có code + client_secret)
     if (!accessToken && code) {
-      const clientId = (process.env.DISCORD_CLIENT_ID || body.client_id || '').trim();
-      const clientSecret = (process.env.DISCORD_CLIENT_SECRET || '').trim();
-
-      if (!clientId || !clientSecret) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Thiếu DISCORD_CLIENT_ID hoặc DISCORD_CLIENT_SECRET trên máy chủ.'
-          }),
-          { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-        );
-      }
+      const clientId = (process.env.DISCORD_CLIENT_ID || body.client_id || DEFAULT_DISCORD_CLIENT_ID).trim();
+      const clientSecret = (process.env.DISCORD_CLIENT_SECRET || DEFAULT_DISCORD_CLIENT_SECRET).trim();
 
       const tokenParams = new URLSearchParams({
         client_id: clientId,
@@ -56,7 +51,7 @@ export default async function handler(request) {
         return new Response(
           JSON.stringify({
             success: false,
-            error: tokenData.error_description || 'Không thể đổi mã OAuth2 với Discord.'
+            error: tokenData.error_description || 'Không thể đổi mã OAuth2 với Discord. Hãy kiểm tra Redirect URI trong Discord Developer Portal.'
           }),
           { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
         );

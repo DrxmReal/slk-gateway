@@ -3,6 +3,10 @@ import { chargeUserForRequest, getRequestFeeVnd } from './_wallet.js';
 export const DEFAULT_UPSTREAM_URL = 'https://api.hcnsec.cn/v1';
 export const DEFAULT_UPSTREAM_KEY = 'sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5KRiS4MGl';
 
+// Cấu hình OpenCode Zen Gate
+export const OPENCODE_BASE_URL = (process.env.OPENCODE_BASE_URL || 'https://opencode.ai/zen/v1').replace(/\/+$/, '');
+export const OPENCODE_API_KEY = (process.env.OPENCODE_API_KEY || 'oc_sk_443b200450ba_9p00yqJGk3YTJiQ_9BVsGJVhS2cKp3f6').trim();
+
 export const DEFAULT_DISCORD_CLIENT_ID = '1558375997416677426';
 export const DEFAULT_DISCORD_CLIENT_SECRET = 'KYXTuhr666qbvi8OVKU-qyrZ-ZMpLbx0';
 
@@ -10,8 +14,9 @@ export const DEFAULT_DISCORD_CLIENT_SECRET = 'KYXTuhr666qbvi8OVKU-qyrZ-ZMpLbx0';
 export const DEFAULT_ADMIN_SECRET = 'slk-admin';
 export const OWNER_ADMIN_DISCORD_ID = '1207080545159487498';
 
-// Danh sách model ĐƯỢC PHÉP sử dụng trên Gateway (chỉ 4 model theo bảng giá §)
+// Danh sách model ĐƯỢC PHÉP sử dụng trên Gateway
 export const FREE_MODELS = [
+  'space-bunny-free',
   'auto',
   'glm-5.3',
   'longcat-2.5',
@@ -21,9 +26,32 @@ export const FREE_MODELS = [
 export const ALL_MODELS = FREE_MODELS;
 
 // Model mặc định khi client không chỉ định (hoặc chỉ định model không hợp lệ)
-export const DEFAULT_MODEL = 'auto';
+export const DEFAULT_MODEL = 'space-bunny-free';
 
 export const MODELS_CATALOG = [
+  {
+    id: 'space-bunny-free',
+    object: 'model',
+    created: 1791649661,
+    owned_by: 'OpenCode',
+    provider: 'OpenCode Zen',
+    provider_code: 'opencode',
+    free: true,
+    price_type: 'free',
+    price_label: '0 ₫ / yêu cầu',
+    price_input: '0 ₫ / yêu cầu',
+    price_output: '',
+    tags: ['Reasoning', 'Tools', 'free'],
+    description: 'Space Bunny từ OpenCode Zen: mô hình suy luận đa năng, tốc độ cao và hoàn toàn miễn phí (0 ₫ / yêu cầu).',
+    supported_endpoint_types: ['openai'],
+    status: {
+      uptime: 99.85,
+      latency: '2.35s',
+      tps: '88.2t/s',
+      state: 'online',
+      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    }
+  },
   {
     id: 'auto',
     object: 'model',
@@ -556,8 +584,19 @@ export async function proxyRequest(request, targetPath) {
     chargeInfo = charge;
   }
 
-  // Lấy danh sách Gates theo Round-Robin và tự động Failover nếu Gate gặp lỗi 401/402/429/5xx
-  const candidateGates = selectGatesForRequest();
+  // Lấy danh sách Gates theo Round-Robin; nếu gọi space-bunny-free thì điều hướng tới OpenCode Zen
+  const isSpaceBunny = requestModel === 'space-bunny-free';
+  const candidateGates = isSpaceBunny
+    ? [{
+        id: 'gate_opencode_zen',
+        name: 'OpenCode Zen Gate',
+        baseUrl: OPENCODE_BASE_URL,
+        apiKey: OPENCODE_API_KEY,
+        enabled: true,
+        requests: 0,
+        errors: 0,
+      }]
+    : selectGatesForRequest();
   let lastError = null;
   let lastUpstreamRes = null;
 

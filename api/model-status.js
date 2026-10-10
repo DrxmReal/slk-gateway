@@ -1,6 +1,8 @@
 import {
   DEFAULT_UPSTREAM_URL,
   DEFAULT_UPSTREAM_KEY,
+  OPENCODE_BASE_URL,
+  OPENCODE_API_KEY,
   MODELS_CATALOG,
   corsHeaders,
   handleOptions,
@@ -107,7 +109,10 @@ export default async function handler(request) {
   const targetModel = url.searchParams.get('model');
 
   if (targetModel) {
-    const probe = await probeSingleModel(targetModel, activeGate.baseUrl, activeGate.apiKey);
+    const isSpaceBunny = targetModel === 'space-bunny-free';
+    const probeBase = isSpaceBunny ? OPENCODE_BASE_URL : activeGate.baseUrl;
+    const probeKey = isSpaceBunny ? OPENCODE_API_KEY : activeGate.apiKey;
+    const probe = await probeSingleModel(targetModel, probeBase, probeKey);
     return new Response(
       JSON.stringify({ success: true, probe, timestamp: new Date().toISOString() }),
       { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }

@@ -5,3 +5,5 @@ node_modules
 .vercel
 key-pool.json
 b8094101-2125-4b58-b6f5-81e244e2fff7.png
+
+vercel.env

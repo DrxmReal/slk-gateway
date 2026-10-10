@@ -167,6 +167,8 @@ curl -X POST "https://your-project.vercel.app/v1/chat/completions" \
   }'
 ```
 
+> 💳 Mỗi request trừ phí cố định từ ví (`auto`/`glm-5.3`: 1.000 ₫ • `longcat-2.5`/`sensenova-6.8-flash-lite`: 500 ₫). Hết tiền → HTTP 402 với `error.code = "insufficient_balance"`.
+
 ---
 
 ### 4. Cấu hình vào các ứng dụng phổ biến (Chatbox, NextChat, LibreChat)
@@ -187,20 +189,24 @@ curl -X POST "https://your-project.vercel.app/v1/chat/completions" \
 ```
 ai-api-gateway/
 ├── api/
-│   ├── _utils.js                 # Logic proxy, CORS, xác thực và streaming
+│   ├── _utils.js                 # Logic proxy, CORS, xác thực, model list & streaming
+│   ├── _supabase.js              # Persistence Supabase (users, keys, gates) + VÍ TIỀN VND
+│   ├── _wallet.js                # Logic ví tiền: số dư, phí/request, nạp tiền, giao dịch
 │   ├── proxy.js                  # Catch-all Edge handler cho /v1/*
+│   ├── wallet.js                 # Endpoint GET /api/wallet (số dư + lịch sử giao dịch)
 │   ├── health.js                 # Endpoint kiểm tra trạng thái hệ thống
 │   └── v1/
 │       ├── chat/
 │       │   └── completions.js    # Vercel Edge Function cho /v1/chat/completions
 │       └── models.js             # Vercel Edge Function cho /v1/models
 ├── public/
-│   ├── index.html                # Giao diện Web SPA (Chat, Docs, Playground, Models)
+│   ├── index.html                # Giao diện Web SPA (Chat, Docs, Playground, Models, Ví)
 │   ├── app.js                    # Logic client xử lý SSE stream và UI
 │   └── style.css                 # Giao diện Dark theme, typography & hiệu ứng
 ├── server.js                     # Máy chủ Node.js local chạy không cần cài package
 ├── vercel.json                   # Cấu hình rewrite & CORS cho Vercel Edge
 ├── package.json                  # Tệp cấu hình dự án
+├── supabase_schema.sql           # Schema DB (users, api keys, gate pool, VÍ TIỀN + RPC)
 ├── .env                          # Biến môi trường local
 ├── .env.example                  # Mẫu biến môi trường
 └── README.md                     # Tài liệu dự án

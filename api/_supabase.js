@@ -456,9 +456,14 @@ export async function dbGetUserBalanceVnd(discordUserId) {
           setCachedBalance(uid, finalBal);
           return finalBal;
         }
-        // Chưa có row -> user mới -> tặng số dư mặc định
-        setCachedBalance(uid, DEFAULT_USER_BALANCE_VND);
-        return DEFAULT_USER_BALANCE_VND;
+        // Chưa có row trong DB (user chưa login qua Discord):
+        // - nếu đã có số dư memory (đang dùng tạm) -> GIỮ NGUYÊN, không reset
+        // - nếu chưa có -> tặng mặc định
+        if (!cached) {
+          setCachedBalance(uid, DEFAULT_USER_BALANCE_VND);
+          return DEFAULT_USER_BALANCE_VND;
+        }
+        return cached.value;
       }
       // Supabase trả lỗi (vd: chưa chạy schema mới) -> GIỮ NGUYÊN số dư memory, không ghi đè bằng mặc định
     } catch {

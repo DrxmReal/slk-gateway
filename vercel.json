@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/v1/chat/completions",
+      "destination": "/api/v1/chat/completions"
+    },
+    {
+      "source": "/v1/models",
+      "destination": "/api/v1/models"
+    },
+    {
+      "source": "/v1/:path*",
+      "destination": "/api/proxy?path=:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/health"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, PATCH, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-Requested-With, X-Custom-Key, Accept, User-Agent" }
+      ]
+    }
+  ]
+}

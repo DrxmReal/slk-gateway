@@ -1,0 +1,22 @@
+{
+  "name": "ai-api-gateway",
+  "version": "1.0.0",
+  "description": "High-performance OpenAI-compatible AI API Gateway and Web UI for Vercel",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "ai",
+    "openai",
+    "proxy",
+    "gateway",
+    "vercel",
+    "deepseek",
+    "llm"
+  ],
+  "author": "",
+  "license": "MIT"
+}

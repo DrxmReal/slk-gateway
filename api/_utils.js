@@ -82,15 +82,48 @@ export function handleOptions() {
   });
 }
 
-export function checkAuth(request) {
-  const customKey = (process.env.CUSTOM_ACCESS_KEY || '').trim();
-  if (!customKey) return true; // Open access if no custom key configured
+// Tạo API Key cá nhân dựa trên Discord User ID
+export async function generateDiscordUserApiKey(discordUserId) {
+  const secret = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).slice(0, 16);
+  const raw = `${discordUserId}:${secret}`;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(raw);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 24);
+  return `sk-dc-${discordUserId}-${hashHex}`;
+}
 
+export async function verifyDiscordUserApiKey(token) {
+  if (!token || !token.startsWith('sk-dc-')) return false;
+  const parts = token.split('-');
+  if (parts.length < 4) return false;
+  const discordUserId = parts[2];
+  const expectedKey = await generateDiscordUserApiKey(discordUserId);
+  return token === expectedKey;
+}
+
+export async function checkAuth(request) {
+  const customKey = (process.env.CUSTOM_ACCESS_KEY || '').trim();
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  const customHeader = request.headers.get('x-custom-key') || '';
+  const customHeader = (request.headers.get('x-custom-key') || '').trim();
 
-  return token === customKey || customHeader === customKey;
+  const candidate = token || customHeader;
+
+  // Chấp nhận key sinh từ tài khoản Discord đã đăng nhập (sk-dc-...)
+  if (candidate && candidate.startsWith('sk-dc-')) {
+    const validDiscordKey = await verifyDiscordUserApiKey(candidate);
+    if (validDiscordKey) return true;
+  }
+
+  // Nếu admin có đặt CUSTOM_ACCESS_KEY cố định
+  if (customKey && candidate === customKey) {
+    return true;
+  }
+
+  // Bắt buộc phải có key Discord hợp lệ (hoặc CUSTOM_ACCESS_KEY nếu được cấu hình)
+  return false;
 }
 
 export async function proxyRequest(request, targetPath) {
@@ -98,13 +131,14 @@ export async function proxyRequest(request, targetPath) {
     return handleOptions();
   }
 
-  if (!checkAuth(request)) {
+  const isAuthorized = await checkAuth(request);
+  if (!isAuthorized) {
     return new Response(
       JSON.stringify({
         error: {
-          message: 'Unauthorized: Invalid or missing API key. Please check your authorization bearer token.',
+          message: 'Unauthorized: Bạn cần đăng nhập Discord trên website để lấy API Key sử dụng dịch vụ này.',
           type: 'authentication_error',
-          code: 'invalid_api_key'
+          code: 'discord_login_required'
         }
       }),
       {
@@ -164,8 +198,7 @@ export async function proxyRequest(request, targetPath) {
       if (rawBody && cleanPath.includes('chat/completions')) {
         try {
           const parsed = JSON.parse(rawBody);
-          // Chặn các model trả phí: nếu model gửi lên không nằm trong danh sách FREE_MODELS,
-          // tự động chuyển về 'DeepSeek-V4-Flash' (hoặc 'auto') để không bao giờ bị trừ tiền!
+          // Chặn các model trả phí: chỉ cho phép các model trong FREE_MODELS
           if (!parsed.model || !FREE_MODELS.includes(parsed.model)) {
             parsed.model = 'DeepSeek-V4-Flash';
           }

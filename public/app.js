@@ -1,5 +1,5 @@
 // ==========================================
-// Nexus AI Gateway - Client Logic
+// Nexus AI Gateway - Client Logic (Discord Auth + Free Models)
 // ==========================================
 
 let currentTab = 'chat';
@@ -7,10 +7,22 @@ let availableModels = [];
 let chatHistory = [];
 let activeAbortController = null;
 
-// Settings
+// Settings & Discord Session
 let systemPrompt = localStorage.getItem('nexus_system_prompt') || 'Bạn là trợ lý AI hữu ích, thông minh và phản hồi nhanh chóng bằng tiếng Việt.';
 let chatTemperature = parseFloat(localStorage.getItem('nexus_temperature') || '0.7');
-let clientAccessToken = localStorage.getItem('nexus_client_token') || '';
+let discordUser = null;
+let clientAccessToken = localStorage.getItem('nexus_discord_api_key') || '';
+let oauthConfig = {
+  clientId: localStorage.getItem('nexus_discord_client_id') || '',
+  hasSecret: false,
+};
+
+try {
+  const savedUser = localStorage.getItem('nexus_discord_user');
+  if (savedUser) discordUser = JSON.parse(savedUser);
+} catch {
+  discordUser = null;
+}
 
 // Initialize Markdown parser
 if (window.marked) {
@@ -21,9 +33,7 @@ if (window.marked) {
       if (window.hljs && lang && hljs.getLanguage(lang)) {
         try {
           return hljs.highlight(code, { language: lang }).value;
-        } catch {
-          // fallback
-        }
+        } catch {}
       }
       return code;
     }
@@ -33,37 +43,233 @@ if (window.marked) {
 // ------------------------------------------
 // Initialization on DOM Ready
 // ------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   if (window.lucide) lucide.createIcons();
-  
-  // Setup dynamic URLs for docs
-  updateGatewayUrls();
 
-  // Load modal inputs
-  document.getElementById('modal-system-prompt').value = systemPrompt;
-  document.getElementById('modal-temperature').value = chatTemperature;
-  document.getElementById('temp-val').textContent = chatTemperature;
-  document.getElementById('client-token-input').value = clientAccessToken;
+  // Set redirect URI preview
+  const redirectPreview = document.getElementById('oauth-redirect-preview');
+  if (redirectPreview) {
+    redirectPreview.textContent = `${window.location.origin}/`;
+  }
 
-  // Run initial health check & fetch models
-  checkGatewayHealth();
-  fetchAvailableModels();
+  // Load System prompt modal values
+  const spEl = document.getElementById('modal-system-prompt');
+  if (spEl) spEl.value = systemPrompt;
+  const tempEl = document.getElementById('modal-temperature');
+  if (tempEl) tempEl.value = chatTemperature;
+  const tempVal = document.getElementById('temp-val');
+  if (tempVal) tempVal.textContent = chatTemperature;
 
-  // Highlight initial code blocks
+  // 1. Fetch server Discord OAuth2 config
+  await loadDiscordOAuthConfig();
+
+  // 2. Check if returning from Discord OAuth2 redirect (#access_token=... or ?code=...)
+  await handleDiscordRedirectCallback();
+
+  // 3. Enforce Discord Login Gate
+  updateAuthUI();
+
   if (window.hljs) hljs.highlightAll();
 });
 
 // ------------------------------------------
-// Dynamic Base URL calculation
+// Discord OAuth2 Authentication Flow
+// ------------------------------------------
+async function loadDiscordOAuthConfig() {
+  try {
+    const res = await fetch('/api/auth/config');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.clientId) {
+        oauthConfig.clientId = data.clientId;
+        localStorage.setItem('nexus_discord_client_id', data.clientId);
+      }
+      oauthConfig.hasSecret = Boolean(data.hasSecret);
+    }
+  } catch (err) {
+    console.warn('Could not load auth config:', err);
+  }
+
+  const clientIdInput = document.getElementById('admin-discord-client-id');
+  if (clientIdInput && oauthConfig.clientId) {
+    clientIdInput.value = oauthConfig.clientId;
+  }
+}
+
+async function handleDiscordRedirectCallback() {
+  const hash = window.location.hash.substring(1);
+  const hashParams = new URLSearchParams(hash);
+  const queryParams = new URLSearchParams(window.location.search);
+
+  const accessToken = hashParams.get('access_token');
+  const code = queryParams.get('code');
+  const errorDesc = hashParams.get('error_description') || queryParams.get('error_description');
+
+  if (errorDesc) {
+    showDiscordError(`Discord từ chối đăng nhập: ${errorDesc}`);
+    window.history.replaceState({}, document.title, window.location.pathname);
+    return;
+  }
+
+  if (!accessToken && !code) return;
+
+  // Show loading state on button
+  const btn = document.getElementById('btn-discord-login');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>Đang xác thực tài khoản Discord...</span>`;
+  }
+
+  try {
+    const redirectUri = `${window.location.origin}/`;
+    const res = await fetch('/api/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        access_token: accessToken || '',
+        code: code || '',
+        client_id: oauthConfig.clientId,
+        redirect_uri: redirectUri,
+      }),
+    });
+
+    const data = await res.json();
+    // Clean URL hash/query
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Xác thực Discord thất bại.');
+    }
+
+    // Save session
+    discordUser = data.user;
+    clientAccessToken = data.apiKey;
+    localStorage.setItem('nexus_discord_user', JSON.stringify(discordUser));
+    localStorage.setItem('nexus_discord_api_key', clientAccessToken);
+  } catch (err) {
+    showDiscordError(err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<span>Đăng nhập với Discord</span>`;
+    }
+  }
+}
+
+function updateAuthUI() {
+  const gate = document.getElementById('discord-login-gate');
+  const userPill = document.getElementById('discord-user-pill');
+  const userAvatar = document.getElementById('discord-user-avatar');
+  const userName = document.getElementById('discord-user-name');
+  const keySpan = document.getElementById('user-personal-api-key');
+
+  if (discordUser && clientAccessToken) {
+    // User is authenticated with Discord -> Unlock Website!
+    if (gate) gate.classList.add('hidden');
+    if (userPill) {
+      userPill.classList.remove('hidden');
+      userPill.classList.add('flex');
+    }
+    if (userAvatar) userAvatar.src = discordUser.avatar_url;
+    if (userName) userName.textContent = discordUser.global_name || discordUser.username;
+    if (keySpan) keySpan.textContent = clientAccessToken;
+
+    updateGatewayUrls();
+    checkGatewayHealth();
+    fetchAvailableModels();
+  } else {
+    // Not logged in -> Lock Website with Discord Gate
+    if (gate) gate.classList.remove('hidden');
+    if (userPill) {
+      userPill.classList.add('hidden');
+      userPill.classList.remove('flex');
+    }
+    // If Client ID is not configured yet, open config box automatically to guide Admin
+    if (!oauthConfig.clientId) {
+      const box = document.getElementById('discord-config-box');
+      if (box) box.classList.remove('hidden');
+    }
+  }
+}
+
+function startDiscordOAuth() {
+  const clientId = (oauthConfig.clientId || document.getElementById('admin-discord-client-id')?.value || '').trim();
+  if (!clientId) {
+    showDiscordError('Chưa cấu hình Discord Client ID! Vui lòng nhập Discord Application Client ID ở mục Cấu hình bên dưới.');
+    const box = document.getElementById('discord-config-box');
+    if (box) box.classList.remove('hidden');
+    return;
+  }
+
+  const redirectUri = encodeURIComponent(`${window.location.origin}/`);
+  const scope = encodeURIComponent('identify');
+  // Sử dụng response_type=token (Implicit Flow) hoặc code nếu có Client Secret
+  const responseType = oauthConfig.hasSecret ? 'code' : 'token';
+
+  const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUri}&response_type=${responseType}&scope=${scope}`;
+  window.location.href = discordAuthUrl;
+}
+
+function toggleDiscordConfigBox() {
+  const box = document.getElementById('discord-config-box');
+  if (box) box.classList.toggle('hidden');
+}
+
+async function saveDiscordOAuthConfig() {
+  const clientId = document.getElementById('admin-discord-client-id')?.value.trim() || '';
+  const clientSecret = document.getElementById('admin-discord-client-secret')?.value.trim() || '';
+
+  if (!clientId) {
+    showDiscordError('Vui lòng nhập Discord Client ID hợp lệ.');
+    return;
+  }
+
+  oauthConfig.clientId = clientId;
+  localStorage.setItem('nexus_discord_client_id', clientId);
+
+  try {
+    const res = await fetch('/api/auth/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId, clientSecret }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      oauthConfig.hasSecret = Boolean(data.hasSecret);
+    }
+  } catch {}
+
+  const errEl = document.getElementById('discord-auth-error');
+  if (errEl) errEl.classList.add('hidden');
+  alert('Đã lưu cấu hình Discord OAuth2! Bây giờ bạn có thể nhấn "Đăng nhập với Discord".');
+}
+
+function showDiscordError(msg) {
+  const errEl = document.getElementById('discord-auth-error');
+  if (errEl) {
+    errEl.textContent = msg;
+    errEl.classList.remove('hidden');
+  }
+}
+
+function logoutDiscord() {
+  localStorage.removeItem('nexus_discord_user');
+  localStorage.removeItem('nexus_discord_api_key');
+  discordUser = null;
+  clientAccessToken = '';
+  updateAuthUI();
+}
+
+// ------------------------------------------
+// Dynamic Base URL & Code Snippets
 // ------------------------------------------
 function getBaseUrl() {
-  const origin = window.location.origin;
-  return `${origin}/v1`;
+  return `${window.location.origin}/v1`;
 }
 
 function updateGatewayUrls() {
   const baseUrl = getBaseUrl();
   const origin = window.location.origin;
+  const apiKey = clientAccessToken || 'sk-dc-your-key';
 
   const urlDisplay = document.getElementById('gateway-base-url');
   if (urlDisplay) urlDisplay.textContent = baseUrl;
@@ -74,18 +280,67 @@ function updateGatewayUrls() {
   const chatboxElem = document.getElementById('chatbox-endpoint');
   if (chatboxElem) chatboxElem.textContent = baseUrl;
 
-  // Update code snippets
+  // Templates with user's personal Discord API key
   const curlElem = document.getElementById('curl-code-block');
   if (curlElem) {
-    curlElem.textContent = curlElem.textContent.replace(/\$GATEWAY_URL/g, baseUrl);
+    curlElem.textContent = `curl -X POST "${baseUrl}/chat/completions" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -d '{
+    "model": "DeepSeek-V4-Flash",
+    "messages": [
+      { "role": "system", "content": "You are a helpful assistant." },
+      { "role": "user", "content": "Hello!" }
+    ],
+    "stream": true
+  }'`;
   }
+
   const pythonElem = document.getElementById('python-code-block');
   if (pythonElem) {
-    pythonElem.textContent = pythonElem.textContent.replace(/\$GATEWAY_URL/g, baseUrl);
+    pythonElem.textContent = `from openai import OpenAI
+
+# Khởi tạo client với API Key Discord của bạn
+client = OpenAI(
+    base_url="${baseUrl}",
+    api_key="${apiKey}"
+)
+
+response = client.chat.completions.create(
+    model="DeepSeek-V4-Flash",  # Free: DeepSeek-V4-Flash, auto, glm-5.3-flash, kimi-k3, longcat-2.5
+    messages=[
+        {"role": "user", "content": "Xin chào, hãy giới thiệu về bạn."}
+    ],
+    stream=True
+)
+
+for chunk in response:
+    content = chunk.choices[0].delta.content or ""
+    print(content, end="", flush=True)`;
   }
+
   const nodejsElem = document.getElementById('nodejs-code-block');
   if (nodejsElem) {
-    nodejsElem.textContent = nodejsElem.textContent.replace(/\$GATEWAY_URL/g, baseUrl);
+    nodejsElem.textContent = `import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  baseURL: '${baseUrl}',
+  apiKey: '${apiKey}',
+});
+
+async function main() {
+  const stream = await openai.chat.completions.create({
+    model: 'DeepSeek-V4-Flash',
+    messages: [{ role: 'user', content: 'Giải thích cơ chế Proxy API?' }],
+    stream: true,
+  });
+
+  for await (const chunk of stream) {
+    process.stdout.write(chunk.choices[0]?.delta?.content || '');
+  }
+}
+
+main();`;
   }
 }
 
@@ -95,12 +350,10 @@ function updateGatewayUrls() {
 function switchTab(tabId) {
   currentTab = tabId;
 
-  // Panes
   document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
   const activePane = document.getElementById(`tab-${tabId}`);
   if (activePane) activePane.classList.remove('hidden');
 
-  // Desktop Tab Buttons
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.remove('active');
     btn.classList.add('text-slate-400');
@@ -111,7 +364,6 @@ function switchTab(tabId) {
     activeBtn.classList.remove('text-slate-400');
   }
 
-  // Mobile Tab Buttons
   document.querySelectorAll('.mobile-tab-btn').forEach(btn => {
     btn.classList.remove('active');
     btn.classList.add('text-slate-400');
@@ -148,30 +400,29 @@ async function checkGatewayHealth() {
   try {
     const res = await fetch('/health');
     if (res.ok) {
-      const data = await res.json();
-      statusText.textContent = 'API Sẵn sàng';
-      statusPill.className = 'flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400';
+      if (statusText) statusText.textContent = 'API Sẵn sàng';
+      if (statusPill) statusPill.className = 'hidden sm:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400';
     } else {
       throw new Error(`Status ${res.status}`);
     }
-  } catch (err) {
-    statusText.textContent = 'Chưa kết nối';
-    statusPill.className = 'flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400';
+  } catch {
+    if (statusText) statusText.textContent = 'Chưa kết nối';
+    if (statusPill) statusPill.className = 'hidden sm:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400';
   }
 }
 
 // ------------------------------------------
 // Fetch Available Models from /v1/models
 // ------------------------------------------
-async function fetchAvailableModels(force = false) {
+async function fetchAvailableModels() {
+  if (!clientAccessToken) return;
+
   const badge = document.getElementById('models-count-badge');
   const grid = document.getElementById('models-grid');
   const select = document.getElementById('chat-model-select');
 
   try {
-    const headers = {};
-    if (clientAccessToken) headers['Authorization'] = `Bearer ${clientAccessToken}`;
-
+    const headers = { Authorization: `Bearer ${clientAccessToken}` };
     const res = await fetch('/v1/models', { headers });
     if (!res.ok) throw new Error('Không thể tải models');
 
@@ -180,7 +431,6 @@ async function fetchAvailableModels(force = false) {
 
     if (badge) badge.textContent = availableModels.length;
 
-    // Update Select Dropdown
     if (select && availableModels.length > 0) {
       const currentSelected = select.value;
       select.innerHTML = '';
@@ -199,7 +449,6 @@ async function fetchAvailableModels(force = false) {
       }
     }
 
-    // Render Models Grid (Tab 4)
     if (grid) {
       if (availableModels.length === 0) {
         grid.innerHTML = '<div class="col-span-3 text-center text-slate-500 text-xs py-10">Không tìm thấy model nào.</div>';
@@ -231,22 +480,12 @@ async function fetchAvailableModels(force = false) {
     }
   } catch (err) {
     console.error('Error fetching models:', err);
-    if (badge) badge.textContent = '!';
-    if (grid) {
-      grid.innerHTML = `
-        <div class="col-span-3 p-6 rounded-2xl bg-red-950/20 border border-red-900/40 text-center text-red-400 text-xs">
-          Lỗi tải danh sách models (${err.message}). Vui lòng kiểm tra API Gateway.
-        </div>
-      `;
-    }
   }
 }
 
 function selectModel(modelId) {
   const select = document.getElementById('chat-model-select');
-  if (select) {
-    select.value = modelId;
-  }
+  if (select) select.value = modelId;
 }
 
 function selectModelAndChat(modelId) {
@@ -290,7 +529,7 @@ function clearChat() {
         <i data-lucide="sparkles" class="w-8 h-8 text-indigo-400"></i>
       </div>
       <h2 class="text-xl font-bold text-slate-100 mb-2">Cuộc trò chuyện mới</h2>
-      <p class="text-slate-400 text-sm">Hãy nhập câu hỏi bên dưới để bắt đầu giao tiếp với mô hình AI.</p>
+      <p class="text-slate-400 text-sm">Hãy nhập câu hỏi bên dưới để bắt đầu giao tiếp với mô hình AI miễn phí.</p>
     </div>
   `;
   if (window.lucide) lucide.createIcons();
@@ -323,38 +562,36 @@ function stopGeneration() {
 
 async function handleChatSubmit(e) {
   if (e && e.preventDefault) e.preventDefault();
+  if (!clientAccessToken) {
+    updateAuthUI();
+    return;
+  }
+
   const input = document.getElementById('chat-input');
   const message = input.value.trim();
   if (!message) return;
 
-  // Clear input
   input.value = '';
   autoResizeTextarea(input);
 
-  // Hide welcome message if present
   const welcome = document.getElementById('welcome-message');
   if (welcome) welcome.remove();
 
-  // Selected Model
   const modelSelect = document.getElementById('chat-model-select');
-  const selectedModel = modelSelect ? modelSelect.value : 'auto';
+  const selectedModel = modelSelect ? modelSelect.value : 'DeepSeek-V4-Flash';
 
-  // Append user message to state & UI
   chatHistory.push({ role: 'user', content: message });
   appendMessageToUI('user', message);
 
-  // Build full payload with system prompt
   const messagesPayload = [];
   if (systemPrompt.trim()) {
     messagesPayload.push({ role: 'system', content: systemPrompt.trim() });
   }
   messagesPayload.push(...chatHistory);
 
-  // Create UI Assistant bubble placeholder
   const assistantBubbleId = `msg-assistant-${Date.now()}`;
   appendAssistantPlaceholder(assistantBubbleId, selectedModel);
 
-  // Prepare streaming request
   toggleGenerationButtons(true);
   activeAbortController = new AbortController();
 
@@ -362,12 +599,12 @@ async function handleChatSubmit(e) {
   const messageContentEl = document.getElementById(`${assistantBubbleId}-content`);
 
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (clientAccessToken) headers['Authorization'] = `Bearer ${clientAccessToken}`;
-
     const response = await fetch('/v1/chat/completions', {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${clientAccessToken}`,
+      },
       signal: activeAbortController.signal,
       body: JSON.stringify({
         model: selectedModel,
@@ -403,10 +640,7 @@ async function handleChatSubmit(e) {
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith(':')) continue;
-
-        if (trimmed === 'data: [DONE]') {
-          break;
-        }
+        if (trimmed === 'data: [DONE]') break;
 
         if (trimmed.startsWith('data: ')) {
           const jsonStr = trimmed.slice(6);
@@ -415,20 +649,16 @@ async function handleChatSubmit(e) {
             const delta = parsed.choices?.[0]?.delta?.content || '';
             assistantReplyText += delta;
 
-            // Render Markdown incrementally
             if (messageContentEl) {
               messageContentEl.innerHTML = marked.parse(assistantReplyText);
               enhanceCodeBlocks(messageContentEl);
             }
             scrollToBottom();
-          } catch {
-            // Incomplete JSON chunk, skip
-          }
+          } catch {}
         }
       }
     }
 
-    // Finished streaming
     if (messageContentEl) {
       messageContentEl.classList.remove('streaming-cursor');
     }
@@ -481,10 +711,11 @@ function appendAssistantPlaceholder(id, modelName) {
     <div class="max-w-[90%] sm:max-w-[85%] assistant-bubble p-4 sm:p-5 text-sm">
       <div class="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-3">
         <div class="flex items-center space-x-2">
-          <div class="w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs">
+          <div class="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">
             <i data-lucide="bot" class="w-3.5 h-3.5"></i>
           </div>
-          <span class="text-xs font-mono font-semibold text-indigo-300">${modelName}</span>
+          <span class="text-xs font-mono font-semibold text-emerald-300">${modelName}</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">FREE</span>
         </div>
         <button onclick="copyAssistantMessage('${id}-content')" class="text-[11px] text-slate-500 hover:text-slate-300 flex items-center space-x-1">
           <i data-lucide="copy" class="w-3 h-3"></i>
@@ -503,9 +734,7 @@ function appendAssistantPlaceholder(id, modelName) {
 
 function scrollToBottom() {
   const container = document.getElementById('chat-messages');
-  if (container) {
-    container.scrollTop = container.scrollHeight;
-  }
+  if (container) container.scrollTop = container.scrollHeight;
 }
 
 function enhanceCodeBlocks(container) {
@@ -566,23 +795,6 @@ function saveSystemPrompt() {
 }
 
 // ------------------------------------------
-// Settings Modal (Client Token)
-// ------------------------------------------
-function openSettingsModal() {
-  const modal = document.getElementById('settings-modal');
-  modal.classList.toggle('hidden');
-}
-
-function saveClientToken() {
-  const token = document.getElementById('client-token-input').value.trim();
-  clientAccessToken = token;
-  localStorage.setItem('nexus_client_token', clientAccessToken);
-  openSettingsModal();
-  checkGatewayHealth();
-  fetchAvailableModels();
-}
-
-// ------------------------------------------
 // API Tester / Playground
 // ------------------------------------------
 function handleTesterEndpointChange() {
@@ -593,7 +805,7 @@ function handleTesterEndpointChange() {
   if (endpoint === '/v1/chat/completions') {
     bodyWrapper.classList.remove('hidden');
     payloadEl.value = JSON.stringify({
-      model: "auto",
+      model: "DeepSeek-V4-Flash",
       messages: [
         { role: "user", content: "Kiểm tra kết nối API Gateway thành công hay chưa?" }
       ],
@@ -632,8 +844,10 @@ async function executeApiTest() {
 
   try {
     const isPost = endpoint.includes('chat/completions');
-    const headers = { 'Content-Type': 'application/json' };
-    if (clientAccessToken) headers['Authorization'] = `Bearer ${clientAccessToken}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${clientAccessToken}`,
+    };
 
     const fetchOptions = {
       method: isPost ? 'POST' : 'GET',

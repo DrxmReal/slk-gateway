@@ -2,34 +2,39 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FREE_MODELS, FREE_MODELS_METADATA } from './api/_utils.js';
+import {
+  FREE_MODELS,
+  FREE_MODELS_METADATA,
+  generateDiscordUserApiKey,
+  verifyDiscordUserApiKey,
+} from './api/_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env manually if exists without needing dotenv package
+// Load .env manually if exists
 const envPath = path.join(__dirname, '.env');
-if (fs.existsSync(envPath)) {
-  const content = fs.readFileSync(envPath, 'utf8');
-  content.split('\n').forEach(line => {
-    const trimmed = line.trim();
-    if (trimmed && !trimmed.startsWith('#')) {
-      const idx = trimmed.indexOf('=');
-      if (idx !== -1) {
-        const key = trimmed.slice(0, idx).trim();
-        const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
-        if (!process.env[key]) {
+function loadEnvFile() {
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf8');
+    content.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const idx = trimmed.indexOf('=');
+        if (idx !== -1) {
+          const key = trimmed.slice(0, idx).trim();
+          const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
           process.env[key] = val;
         }
       }
-    }
-  });
+    });
+  }
 }
+loadEnvFile();
 
 const PORT = process.env.PORT || 3000;
 const UPSTREAM_BASE_URL = (process.env.UPSTREAM_BASE_URL || 'https://api.hcnsec.cn/v1').replace(/\/+$/, '');
 const UPSTREAM_API_KEY = (process.env.UPSTREAM_API_KEY || 'sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5KRiS4MGl').trim();
-const CUSTOM_ACCESS_KEY = (process.env.CUSTOM_ACCESS_KEY || '').trim();
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -49,12 +54,32 @@ const CORS_HEADERS = {
   'Access-Control-Max-Age': '86400',
 };
 
-function checkAuth(req) {
-  if (!CUSTOM_ACCESS_KEY) return true;
+async function checkNodeAuth(req) {
+  const customKey = (process.env.CUSTOM_ACCESS_KEY || '').trim();
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   const customHeader = (req.headers['x-custom-key'] || '').trim();
-  return token === CUSTOM_ACCESS_KEY || customHeader === CUSTOM_ACCESS_KEY;
+  const candidate = token || customHeader;
+
+  if (candidate && candidate.startsWith('sk-dc-')) {
+    const valid = await verifyDiscordUserApiKey(candidate);
+    if (valid) return true;
+  }
+
+  if (customKey && candidate === customKey) {
+    return true;
+  }
+
+  return false;
+}
+
+async function readJsonBody(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+  const raw = Buffer.concat(chunks).toString('utf8');
+  return raw ? JSON.parse(raw) : {};
 }
 
 const server = http.createServer(async (req, res) => {
@@ -73,12 +98,148 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
     res.end(JSON.stringify({
       status: 'healthy',
-      service: 'AI API Gateway (Local - Free Models Only)',
+      service: 'AI API Gateway (Discord Auth + Free Models)',
       upstream: UPSTREAM_BASE_URL,
       free_models: FREE_MODELS,
-      auth_required: Boolean(CUSTOM_ACCESS_KEY),
+      discord_auth_required: true,
       timestamp: new Date().toISOString()
     }));
+    return;
+  }
+
+  // Discord OAuth2 Config Endpoint
+  if (pathname === '/api/auth/config') {
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        if (body.clientId !== undefined) {
+          process.env.DISCORD_CLIENT_ID = String(body.clientId).trim();
+        }
+        if (body.clientSecret !== undefined) {
+          process.env.DISCORD_CLIENT_SECRET = String(body.clientSecret).trim();
+        }
+        // Save to .env file locally
+        let envText = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+        const updateEnvVar = (key, val) => {
+          const regex = new RegExp(`^${key}=.*$`, 'm');
+          if (regex.test(envText)) {
+            envText = envText.replace(regex, `${key}=${val}`);
+          } else {
+            envText += `\n${key}=${val}`;
+          }
+        };
+        if (body.clientId !== undefined) updateEnvVar('DISCORD_CLIENT_ID', process.env.DISCORD_CLIENT_ID);
+        if (body.clientSecret !== undefined) updateEnvVar('DISCORD_CLIENT_SECRET', process.env.DISCORD_CLIENT_SECRET);
+        fs.writeFileSync(envPath, envText.trim() + '\n', 'utf8');
+
+        res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+        res.end(JSON.stringify({
+          success: true,
+          configured: Boolean(process.env.DISCORD_CLIENT_ID),
+          clientId: process.env.DISCORD_CLIENT_ID || '',
+          hasSecret: Boolean(process.env.DISCORD_CLIENT_SECRET),
+        }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+      return;
+    }
+
+    const clientId = (process.env.DISCORD_CLIENT_ID || '').trim();
+    const hasSecret = Boolean((process.env.DISCORD_CLIENT_SECRET || '').trim());
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+    res.end(JSON.stringify({
+      configured: Boolean(clientId),
+      clientId,
+      hasSecret,
+    }));
+    return;
+  }
+
+  // Discord Verify Endpoint
+  if (pathname === '/api/auth/verify' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      let accessToken = body.access_token || '';
+      const code = body.code || '';
+      const redirectUri = body.redirect_uri || '';
+
+      if (!accessToken && code) {
+        const clientId = (process.env.DISCORD_CLIENT_ID || body.client_id || '').trim();
+        const clientSecret = (process.env.DISCORD_CLIENT_SECRET || '').trim();
+
+        if (!clientId || !clientSecret) {
+          res.writeHead(400, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+          res.end(JSON.stringify({
+            success: false,
+            error: 'Thiếu DISCORD_CLIENT_ID hoặc DISCORD_CLIENT_SECRET.'
+          }));
+          return;
+        }
+
+        const tokenParams = new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri,
+        });
+
+        const tokenRes = await fetch('https://discord.com/api/v10/oauth2/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: tokenParams.toString(),
+        });
+        const tokenData = await tokenRes.json();
+        if (!tokenRes.ok || !tokenData.access_token) {
+          res.writeHead(401, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+          res.end(JSON.stringify({
+            success: false,
+            error: tokenData.error_description || 'Không thể đổi mã code với Discord.'
+          }));
+          return;
+        }
+        accessToken = tokenData.access_token;
+      }
+
+      if (!accessToken) {
+        res.writeHead(400, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+        res.end(JSON.stringify({ success: false, error: 'Thiếu access_token từ Discord.' }));
+        return;
+      }
+
+      const userRes = await fetch('https://discord.com/api/v10/users/@me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!userRes.ok) {
+        res.writeHead(401, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+        res.end(JSON.stringify({ success: false, error: 'Token Discord không hợp lệ hoặc đã hết hạn.' }));
+        return;
+      }
+
+      const discordUser = await userRes.json();
+      const apiKey = await generateDiscordUserApiKey(discordUser.id);
+      const avatarUrl = discordUser.avatar
+        ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`
+        : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(discordUser.id) >> 22n) % 6}.png`;
+
+      res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.end(JSON.stringify({
+        success: true,
+        user: {
+          id: discordUser.id,
+          username: discordUser.username,
+          global_name: discordUser.global_name || discordUser.username,
+          avatar_url: avatarUrl,
+        },
+        apiKey,
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
     return;
   }
 
@@ -86,13 +247,14 @@ const server = http.createServer(async (req, res) => {
   const isApiRoute = pathname.startsWith('/v1/') || pathname.startsWith('/api/v1/');
 
   if (isApiRoute) {
-    if (!checkAuth(req)) {
+    const authorized = await checkNodeAuth(req);
+    if (!authorized) {
       res.writeHead(401, { 'Content-Type': 'application/json', ...CORS_HEADERS });
       res.end(JSON.stringify({
         error: {
-          message: 'Unauthorized: Invalid or missing API key. Provide the correct Bearer token.',
+          message: 'Unauthorized: Bạn cần đăng nhập Discord trên website để lấy API Key sử dụng dịch vụ này.',
           type: 'authentication_error',
-          code: 'invalid_api_key'
+          code: 'discord_login_required'
         }
       }));
       return;
@@ -209,9 +371,9 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`====================================================`);
-  console.log(`🚀 AI API Gateway (FREE MODELS ONLY) at: http://localhost:${PORT}`);
+  console.log(`🚀 AI API Gateway (Discord Auth + Free Models) at: http://localhost:${PORT}`);
   console.log(`🌐 Base API URL: http://localhost:${PORT}/v1`);
   console.log(`🆓 Free Models: ${FREE_MODELS.join(', ')}`);
-  console.log(`🔑 Auth Protection: ${CUSTOM_ACCESS_KEY ? 'Enabled' : 'Disabled (Public)'}`);
+  console.log(`🔒 Auth: Discord Login Required`);
   console.log(`====================================================`);
 });

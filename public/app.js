@@ -864,8 +864,10 @@ function handleKeyDown(e) {
 }
 
 function autoResizeTextarea(textarea) {
-  textarea.style.height = 'auto';
-  textarea.style.height = `${Math.min(textarea.scrollHeight, 140)}px`;
+  textarea.style.height = '44px';
+  const nextHeight = Math.min(Math.max(textarea.scrollHeight, 44), 140);
+  textarea.style.height = `${nextHeight}px`;
+  textarea.style.overflowY = textarea.scrollHeight > 140 ? 'auto' : 'hidden';
   document.getElementById('token-counter').textContent = `${textarea.value.length} ký tự`;
 }
 
@@ -874,11 +876,9 @@ function clearChat() {
   const container = document.getElementById('chat-messages');
   container.innerHTML = `
     <div id="welcome-message" class="text-center py-10 max-w-xl mx-auto">
-      <div class="w-14 h-14 mx-auto mb-4 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center">
-        <i data-lucide="sparkles" class="w-7 h-7 text-indigo-400"></i>
-      </div>
+      <img src="/logo.png" alt="SLK Gateway" class="w-16 h-16 mx-auto mb-4 rounded-xl object-cover border border-indigo-500/40 shadow-lg shadow-indigo-500/20">
       <h2 class="text-xl font-bold text-slate-100 mb-2">Cuộc trò chuyện mới</h2>
-      <p class="text-slate-400 text-sm">Hãy nhập câu hỏi bên dưới để bắt đầu giao tiếp với bất kỳ mô hình nào trong 15 mô hình AI.</p>
+      <p class="text-slate-400 text-sm">Hãy nhập câu hỏi bên dưới để bắt đầu giao tiếp với mô hình AI miễn phí.</p>
     </div>
   `;
   if (window.lucide) lucide.createIcons();
@@ -1060,11 +1060,9 @@ function appendAssistantPlaceholder(id, modelName) {
     <div class="max-w-[90%] sm:max-w-[85%] assistant-bubble p-4 sm:p-5 text-sm">
       <div class="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-3">
         <div class="flex items-center space-x-2">
-          <div class="w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs">
-            <i data-lucide="bot" class="w-3.5 h-3.5"></i>
-          </div>
+          <img src="/logo.png" alt="SLK" class="w-5 h-5 rounded-md object-cover border border-indigo-500/40 shrink-0">
           <span class="text-xs font-mono font-semibold text-indigo-300">${escapeHtml(modelName)}</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">SLK /v1</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">FREE</span>
         </div>
         <button onclick="copyAssistantMessage('${id}-content')" class="text-[11px] text-slate-500 hover:text-slate-300 flex items-center space-x-1">
           <i data-lucide="copy" class="w-3 h-3"></i>

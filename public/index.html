@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SLK Gateway — OpenAI v1 Free API &amp; Model Status</title>
+  <link rel="icon" type="image/png" href="/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -48,12 +49,7 @@
       <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-[#5865F2] via-indigo-500 to-cyan-400"></div>
 
       <div class="text-center mb-6">
-        <div class="w-14 h-14 mx-auto mb-4 rounded-xl bg-[#5865F2]/15 border border-[#5865F2]/30 flex items-center justify-center shadow-lg shadow-[#5865F2]/20">
-          <!-- Discord SVG Icon -->
-          <svg class="w-8 h-8 text-[#5865F2]" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
-          </svg>
-        </div>
+        <img src="/logo.png" alt="SLK Gateway Logo" class="w-16 h-16 mx-auto mb-4 rounded-xl object-cover border border-indigo-500/40 shadow-lg shadow-indigo-500/20">
         <h1 class="text-2xl font-bold text-white tracking-tight mb-2">SLK Gateway</h1>
         <p class="text-xs text-slate-400 leading-relaxed">
           Đăng nhập bằng <strong class="text-indigo-300">Discord</strong> để vào Dashboard tạo API Key, theo dõi <strong class="text-emerald-300">Model Status</strong> và dùng các mô hình AI <strong class="text-emerald-400">100% Free</strong> qua endpoint <code class="text-emerald-400 font-mono">/v1</code>.
@@ -104,11 +100,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
       <!-- Brand Logo -->
       <div class="flex items-center space-x-3 shrink-0">
-        <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 p-[1px] shadow-md shadow-indigo-500/20">
-          <div class="w-full h-full bg-[#0d131f] rounded-[7px] flex items-center justify-center">
-            <i data-lucide="cpu" class="w-4 h-4 text-indigo-400"></i>
-          </div>
-        </div>
+        <img src="/logo.png" alt="SLK Gateway" class="w-9 h-9 rounded-lg object-cover border border-indigo-500/40 shadow-md shadow-indigo-500/20 shrink-0">
         <div>
           <div class="flex items-center space-x-2">
             <span class="font-bold text-base tracking-tight text-white whitespace-nowrap">SLK Gateway</span>
@@ -588,9 +580,7 @@ for await (const chunk of stream) {
       <!-- Messages Stream Area -->
       <div id="chat-messages" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
         <div id="welcome-message" class="text-center py-10 max-w-xl mx-auto">
-          <div class="w-14 h-14 mx-auto mb-4 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center">
-            <i data-lucide="sparkles" class="w-7 h-7 text-indigo-400"></i>
-          </div>
+          <img src="/logo.png" alt="SLK Gateway" class="w-16 h-16 mx-auto mb-4 rounded-xl object-cover border border-indigo-500/40 shadow-lg shadow-indigo-500/20">
           <h2 class="text-xl font-bold text-slate-100 mb-2">Chào mừng đến với SLK Gateway!</h2>
           <p class="text-slate-400 text-sm mb-6">
             Chọn một trong 7 mô hình miễn phí (DeepSeek-V4-Flash, GLM-5.3-Flash, Kimi-K3, LongCat-2.5, MiMo-V2.6-Flash, SenseNova-6.8...) để bắt đầu trò chuyện.
@@ -600,22 +590,20 @@ for await (const chunk of stream) {
 
       <!-- Chat Input Area -->
       <div class="p-4 border-t border-slate-800 bg-slate-900/90">
-        <form id="chat-form" onsubmit="handleChatSubmit(event)" class="relative flex items-end gap-2">
-          <div class="flex-1 relative">
-            <textarea
-              id="chat-input"
-              rows="1"
-              placeholder="Nhập tin nhắn... (Nhấn Enter để gửi, Shift+Enter xuống dòng)"
-              class="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 resize-none max-h-36"
-              onkeydown="handleKeyDown(event)"
-              oninput="autoResizeTextarea(this)"
-            ></textarea>
-          </div>
+        <form id="chat-form" onsubmit="handleChatSubmit(event)" class="flex items-end gap-2.5">
+          <textarea
+            id="chat-input"
+            rows="1"
+            placeholder="Nhập tin nhắn... (Nhấn Enter để gửi, Shift+Enter xuống dòng)"
+            class="block flex-1 min-h-[44px] h-[44px] max-h-36 bg-slate-800/90 border border-slate-700 rounded-lg px-4 py-2.5 text-sm leading-[22px] text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 resize-none overflow-y-hidden"
+            onkeydown="handleKeyDown(event)"
+            oninput="autoResizeTextarea(this)"
+          ></textarea>
           
           <button
             type="submit"
             id="chat-submit-btn"
-            class="px-4 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm flex items-center justify-center transition-all shadow-md shadow-indigo-600/20 disabled:opacity-50"
+            class="h-[44px] w-[44px] shrink-0 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm flex items-center justify-center transition-all shadow-md shadow-indigo-600/20 disabled:opacity-50"
           >
             <i data-lucide="send" class="w-4 h-4"></i>
           </button>
@@ -623,7 +611,7 @@ for await (const chunk of stream) {
             type="button"
             id="chat-stop-btn"
             onclick="stopGeneration()"
-            class="hidden px-4 py-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium text-sm flex items-center justify-center transition-all"
+            class="hidden h-[44px] w-[44px] shrink-0 rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium text-sm flex items-center justify-center transition-all"
             title="Dừng sinh văn bản"
           >
             <i data-lucide="square" class="w-4 h-4"></i>

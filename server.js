@@ -3,9 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  ALL_MODELS,
+  FREE_MODELS,
   MODELS_CATALOG,
-  mergeModelsWithCatalog,
   DEFAULT_DISCORD_CLIENT_ID,
   DEFAULT_DISCORD_CLIENT_SECRET,
   generateDiscordUserApiKey,
@@ -105,8 +104,8 @@ const server = http.createServer(async (req, res) => {
       status: 'healthy',
       service: 'SLK Gateway',
       upstream: UPSTREAM_BASE_URL,
-      total_models: ALL_MODELS.length,
-      models: ALL_MODELS,
+      total_models: FREE_MODELS.length,
+      free_models: FREE_MODELS,
       discord_auth_required: true,
       timestamp: new Date().toISOString()
     }));
@@ -287,25 +286,13 @@ const server = http.createServer(async (req, res) => {
     // Extract subpath
     let subpath = pathname.replace(/^\/api\/v1\/?/, '').replace(/^\/v1\/?/, '');
 
-    // Nếu gọi /v1/models -> trả về đầy đủ 15+ models (Free & Paid) kèm thông tin Status
+    // Nếu gọi /v1/models -> chỉ trả về danh sách các model FREE kèm thông tin Status
     if (subpath === 'models' && req.method === 'GET') {
-      let merged = MODELS_CATALOG;
-      try {
-        const r = await fetch(`${UPSTREAM_BASE_URL}/models`, {
-          headers: { Authorization: `Bearer ${UPSTREAM_API_KEY}` },
-        });
-        if (r.ok) {
-          const j = await r.json();
-          if (Array.isArray(j.data)) {
-            merged = mergeModelsWithCatalog(j.data);
-          }
-        }
-      } catch {}
-
       res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
       res.end(JSON.stringify({
         object: 'list',
-        data: merged,
+        data: MODELS_CATALOG,
+        free_only: true,
         success: true
       }));
       return;
@@ -313,14 +300,29 @@ const server = http.createServer(async (req, res) => {
 
     const targetUrl = `${UPSTREAM_BASE_URL}/${subpath}${parsedUrl.search}`;
 
-    // Read body if POST/PUT (forward any model directly without overriding)
+    // Read body if POST/PUT & ép buộc chỉ dùng model FREE
     let bodyPayload = null;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       const chunks = [];
       for await (const chunk of req) {
         chunks.push(chunk);
       }
-      bodyPayload = Buffer.concat(chunks);
+      const rawBuffer = Buffer.concat(chunks);
+      const rawText = rawBuffer.toString('utf8');
+
+      if (rawText && subpath.includes('chat/completions')) {
+        try {
+          const parsed = JSON.parse(rawText);
+          if (!parsed.model || !FREE_MODELS.includes(parsed.model)) {
+            parsed.model = 'DeepSeek-V4-Flash';
+          }
+          bodyPayload = JSON.stringify(parsed);
+        } catch {
+          bodyPayload = rawBuffer;
+        }
+      } else {
+        bodyPayload = rawBuffer;
+      }
     }
 
     try {
@@ -391,9 +393,9 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`====================================================`);
-  console.log(`🚀 SLK Gateway (All 15 Models + Model Status) at: http://localhost:${PORT}`);
+  console.log(`🚀 SLK Gateway (Free Models Only + Model Status) at: http://localhost:${PORT}`);
   console.log(`🌐 Base API URL: http://localhost:${PORT}/v1`);
-  console.log(`🤖 Total Models (${ALL_MODELS.length}): ${ALL_MODELS.join(', ')}`);
+  console.log(`🆓 Free Models (${FREE_MODELS.length}): ${FREE_MODELS.join(', ')}`);
   console.log(`🔒 Discord Client ID: ${process.env.DISCORD_CLIENT_ID || DEFAULT_DISCORD_CLIENT_ID}`);
   console.log(`====================================================`);
 });

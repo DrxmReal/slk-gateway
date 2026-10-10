@@ -4,24 +4,18 @@ export const DEFAULT_UPSTREAM_KEY = 'sk-y0tm0bCPJLL3STHqIDxPGkh6Fk8QWKab7piSmbE5
 export const DEFAULT_DISCORD_CLIENT_ID = '1558375997416677426';
 export const DEFAULT_DISCORD_CLIENT_SECRET = 'KYXTuhr666qbvi8OVKU-qyrZ-ZMpLbx0';
 
-// Danh sách đầy đủ tất cả 15 Models từ upstream (bao gồm cả Free & Paid/Quota) kèm thông tin Model Status
-export const ALL_MODELS = [
+// Danh sách các model 100% FREE (0 ¥) được phép sử dụng trên SLK Gateway
+export const FREE_MODELS = [
   'auto',
   'DeepSeek-V4-Flash',
-  'DeepSeek-V4-Pro',
-  'DeepSeek-V4.1-Flash',
-  'glm-5.3',
   'glm-5.3-flash',
   'kimi-k3',
   'longcat-2.5',
   'MiMo-V2.6-Flash',
-  'MiniMax-M3.1-Flash',
-  'Qwen3.8-27B',
-  'Qwen3.8-Flash-Next',
-  'Qwen3-Embedding-8B',
   'sensenova-6.8-flash-lite',
-  'sensenova-u1.5-lite',
 ];
+
+export const ALL_MODELS = FREE_MODELS;
 
 export const MODELS_CATALOG = [
   {
@@ -31,13 +25,13 @@ export const MODELS_CATALOG = [
     owned_by: 'TrustedRouter',
     provider: 'TrustedRouter',
     provider_code: 'router',
-    free: false,
-    price_type: 'token',
-    price_label: 'Dựa trên token',
-    price_input: '0,76 ¥ / 1M',
-    price_output: '0,76 ¥ / 1M',
+    free: true,
+    price_type: 'free',
+    price_label: 'Miễn phí (0 ¥)',
+    price_input: '0 ¥ / yêu cầu',
+    price_output: '',
     tags: ['Reasoning', 'Tools', 'vision', 'free', '1m'],
-    description: 'Định tuyến thông minh tự động chọn mô hình có chất lượng tốt nhất, tốc độ nhanh nhất và ổn định nhất.',
+    description: 'Định tuyến thông minh tự động chọn mô hình Free có chất lượng tốt nhất, tốc độ nhanh nhất và ổn định nhất.',
     supported_endpoint_types: ['openai', 'image-generation', 'anthropic', 'gemini'],
     status: {
       uptime: 96.35,
@@ -54,13 +48,13 @@ export const MODELS_CATALOG = [
     owned_by: 'DeepSeek',
     provider: 'DeepSeek',
     provider_code: 'deepseek',
-    free: false,
-    price_type: 'request',
-    price_label: 'Theo yêu cầu',
-    price_input: '3,285 ¥ / yêu cầu',
+    free: true,
+    price_type: 'free',
+    price_label: 'Miễn phí (0 ¥)',
+    price_input: '0 ¥ / yêu cầu',
     price_output: '',
-    tags: ['Reasoning', 'Tools', '1m'],
-    description: 'DeepSeek-V4-Flash dựa trên kiến trúc MoE (284B tham số, kích hoạt 13B), hỗ trợ ngữ cảnh lên tới 1M token.',
+    tags: ['Reasoning', 'Tools', '1m', 'free'],
+    description: 'DeepSeek-V4-Flash dựa trên kiến trúc MoE (284B tham số, kích hoạt 13B), hỗ trợ ngữ cảnh lên tới 1M token (Miễn phí 100%).',
     supported_endpoint_types: ['openai', 'anthropic'],
     status: {
       uptime: 98.87,
@@ -71,88 +65,19 @@ export const MODELS_CATALOG = [
     }
   },
   {
-    id: 'DeepSeek-V4-Pro',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'DeepSeek',
-    provider: 'DeepSeek',
-    provider_code: 'deepseek',
-    free: false,
-    price_type: 'request',
-    price_label: 'Theo yêu cầu',
-    price_input: '6,935 ¥ / yêu cầu',
-    price_output: '',
-    tags: ['Reasoning', 'Tools', 'weights'],
-    description: 'DeepSeek-V4-Pro bản chuyên sâu tối ưu cho lập trình phức tạp, suy luận toán học và giải quyết tác vụ khó.',
-    supported_endpoint_types: ['openai', 'anthropic'],
-    status: {
-      uptime: 76.84,
-      latency: '39.00s',
-      tps: '28.9t/s',
-      state: 'degraded',
-      bars: [2,2,1,1,1,1,0,2,2,0,2,1,1,2,2,1,1,1,0,2,1,1,1,1]
-    }
-  },
-  {
-    id: 'DeepSeek-V4.1-Flash',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'DeepSeek',
-    provider: 'DeepSeek',
-    provider_code: 'deepseek',
-    free: false,
-    price_type: 'request',
-    price_label: 'Theo yêu cầu',
-    price_input: '2,482 ¥ / yêu cầu',
-    price_output: '',
-    tags: ['Reasoning', 'Tools', '1m'],
-    description: 'DeepSeek V4.1 Flash thế hệ mới với kiến trúc MoE 552B tham số, nâng cấp tốc độ suy luận và độ chính xác.',
-    supported_endpoint_types: ['openai', 'anthropic'],
-    status: {
-      uptime: 55.02,
-      latency: '41.72s',
-      tps: '33.3t/s',
-      state: 'degraded',
-      bars: [0,0,0,2,0,0,2,0,0,2,1,1,0,2,2,1,0,0,2,1,2,1,1,1]
-    }
-  },
-  {
-    id: 'glm-5.3',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'Zhipu GLM',
-    provider: 'Zhipu GLM',
-    provider_code: 'zhipu',
-    free: false,
-    price_type: 'request',
-    price_label: 'Theo yêu cầu',
-    price_input: '10,95 ¥ / yêu cầu',
-    price_output: '',
-    tags: ['Reasoning', 'Tools'],
-    description: 'GLM-5.3 là mô hình flagship của Zhipu AI với khả năng Scaling hậu huấn luyện vượt trội cho Agent & Coding.',
-    supported_endpoint_types: ['openai', 'anthropic'],
-    status: {
-      uptime: 97.00,
-      latency: '63.41s',
-      tps: '23.7t/s',
-      state: 'online',
-      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,0,1,1]
-    }
-  },
-  {
     id: 'glm-5.3-flash',
     object: 'model',
     created: 1626777600,
     owned_by: 'Zhipu GLM',
     provider: 'Zhipu GLM',
     provider_code: 'zhipu',
-    free: false,
-    price_type: 'request',
-    price_label: 'Theo yêu cầu',
-    price_input: '3,2755 ¥ / yêu cầu',
+    free: true,
+    price_type: 'free',
+    price_label: 'Miễn phí (0 ¥)',
+    price_input: '0 ¥ / yêu cầu',
     price_output: '',
-    tags: ['Reasoning', 'Tools', '1m'],
-    description: 'GLM-5.3-Flash (320B-A10B MoE) hỗ trợ đa phương thức, ngữ cảnh 1M token với chi phí chỉ bằng 1/5 bản Pro.',
+    tags: ['Reasoning', 'Tools', '1m', 'free'],
+    description: 'GLM-5.3-Flash (320B-A10B MoE) hỗ trợ đa phương thức, ngữ cảnh 1M token tốc độ cao (Miễn phí 100%).',
     supported_endpoint_types: ['openai', 'anthropic'],
     status: {
       uptime: 89.25,
@@ -169,13 +94,13 @@ export const MODELS_CATALOG = [
     owned_by: 'Moonshot',
     provider: 'Moonshot',
     provider_code: 'moonshot',
-    free: false,
-    price_type: 'request',
-    price_label: 'Theo yêu cầu',
-    price_input: '25,55 ¥ / yêu cầu',
+    free: true,
+    price_type: 'free',
+    price_label: 'Miễn phí (0 ¥)',
+    price_input: '0 ¥ / yêu cầu',
     price_output: '',
-    tags: ['Reasoning', 'Tools', 'vision'],
-    description: 'Kimi K3 của Moonshot AI là mô hình đa phương thức 2.8T tham số sử dụng kiến trúc chú ý tuyến tính KDA.',
+    tags: ['Reasoning', 'Tools', 'vision', 'free'],
+    description: 'Kimi K3 của Moonshot AI là mô hình đa phương thức 2.8T tham số sử dụng kiến trúc chú ý tuyến tính KDA (Miễn phí 100%).',
     supported_endpoint_types: ['openai', 'anthropic'],
     status: {
       uptime: 68.16,
@@ -198,7 +123,7 @@ export const MODELS_CATALOG = [
     price_input: '0 ¥ / yêu cầu',
     price_output: '',
     tags: ['Reasoning', 'Tools', 'free'],
-    description: 'LongCat 2.5 Preview của Meituan tiếp tục kiến trúc MoE 1.6T tham số, tốc độ cao và hoàn toàn miễn phí.',
+    description: 'LongCat 2.5 Preview của Meituan tiếp tục kiến trúc MoE 1.6T tham số, tốc độ cao và hoàn toàn miễn phí (0 ¥ / yêu cầu).',
     supported_endpoint_types: ['openai', 'anthropic'],
     status: {
       uptime: 99.88,
@@ -232,98 +157,6 @@ export const MODELS_CATALOG = [
     }
   },
   {
-    id: 'MiniMax-M3.1-Flash',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'MiniMax',
-    provider: 'MiniMax',
-    provider_code: 'minimax',
-    free: false,
-    price_type: 'token',
-    price_label: 'Dựa trên token',
-    price_input: '1,20 ¥ / 1M',
-    price_output: '2,40 ¥ / 1M',
-    tags: ['Reasoning', 'Tools'],
-    description: 'MiniMax M3.1 Flash phản hồi siêu tốc (~1.3s), hỗ trợ đồng thời chuẩn giao thức OpenAI và Anthropic Claude.',
-    supported_endpoint_types: ['anthropic', 'openai'],
-    status: {
-      uptime: 98.40,
-      latency: '1.31s',
-      tps: '92.4t/s',
-      state: 'online',
-      bars: [1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1]
-    }
-  },
-  {
-    id: 'Qwen3.8-27B',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'Alibaba Qwen',
-    provider: 'Alibaba Qwen',
-    provider_code: 'qwen',
-    free: false,
-    price_type: 'token',
-    price_label: 'Dựa trên token',
-    price_input: '1,50 ¥ / 1M',
-    price_output: '3,00 ¥ / 1M',
-    tags: ['Reasoning', 'Tools', 'open'],
-    description: 'Qwen 3.8 27B của Alibaba Cloud tối ưu hóa sâu cho suy luận logic, giải toán và viết code chuẩn xác.',
-    supported_endpoint_types: ['openai'],
-    status: {
-      uptime: 91.20,
-      latency: '24.50s',
-      tps: '44.2t/s',
-      state: 'online',
-      bars: [1,1,1,1,2,1,1,1,1,0,1,1,1,1,1,2,1,1,1,1,1,1,1,1]
-    }
-  },
-  {
-    id: 'Qwen3.8-Flash-Next',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'Alibaba Qwen',
-    provider: 'Alibaba Qwen',
-    provider_code: 'qwen',
-    free: false,
-    price_type: 'token',
-    price_label: 'Dựa trên token',
-    price_input: '0,80 ¥ / 1M',
-    price_output: '1,60 ¥ / 1M',
-    tags: ['Reasoning', 'Tools', '1m'],
-    description: 'Qwen 3.8 Flash Next thế hệ mới tốc độ cao, cân bằng hoàn hảo giữa tốc độ sinh token và chất lượng phản hồi.',
-    supported_endpoint_types: ['openai'],
-    status: {
-      uptime: 94.60,
-      latency: '18.20s',
-      tps: '62.5t/s',
-      state: 'online',
-      bars: [1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1]
-    }
-  },
-  {
-    id: 'Qwen3-Embedding-8B',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'Alibaba Qwen',
-    provider: 'Alibaba Qwen',
-    provider_code: 'qwen',
-    free: false,
-    price_type: 'token',
-    price_label: 'Dựa trên token',
-    price_input: '0,20 ¥ / 1M',
-    price_output: '0,20 ¥ / 1M',
-    tags: ['Embedding', 'open'],
-    description: 'Mô hình Vector Embedding 8B tham số của Alibaba Qwen dùng cho RAG, tìm kiếm ngữ nghĩa và phân loại văn bản.',
-    supported_endpoint_types: ['openai'],
-    status: {
-      uptime: 99.50,
-      latency: '0.85s',
-      tps: '120.0t/s',
-      state: 'online',
-      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-    }
-  },
-  {
     id: 'sensenova-6.8-flash-lite',
     object: 'model',
     created: 1626777600,
@@ -336,7 +169,7 @@ export const MODELS_CATALOG = [
     price_input: '0 ¥ / yêu cầu',
     price_output: '',
     tags: ['Tools', 'free'],
-    description: 'SenseNova 6.8 Flash Lite của SenseTime phản hồi cực nhanh (~3s), ổn định cao và miễn phí.',
+    description: 'SenseNova 6.8 Flash Lite của SenseTime phản hồi cực nhanh (~3.3s), ổn định cao và hoàn toàn miễn phí (0 ¥ / yêu cầu).',
     supported_endpoint_types: ['openai'],
     status: {
       uptime: 97.80,
@@ -346,33 +179,8 @@ export const MODELS_CATALOG = [
       bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1]
     }
   },
-  {
-    id: 'sensenova-u1.5-lite',
-    object: 'model',
-    created: 1626777600,
-    owned_by: 'SenseNova',
-    provider: 'SenseNova',
-    provider_code: 'sensenova',
-    free: false,
-    price_type: 'request',
-    price_label: 'Theo yêu cầu',
-    price_input: '0,50 ¥ / yêu cầu',
-    price_output: '',
-    tags: ['Tools'],
-    description: 'SenseNova U1.5 Lite của SenseTime là mô hình đa tác vụ nhẹ, tối ưu cho hội thoại tiếng Trung và đa ngôn ngữ.',
-    supported_endpoint_types: ['openai'],
-    status: {
-      uptime: 64.20,
-      latency: '12.40s',
-      tps: '41.0t/s',
-      state: 'degraded',
-      bars: [1,2,0,1,1,0,2,1,0,1,2,1,1,0,1,1,2,0,1,1,2,1,1,0]
-    }
-  },
 ];
 
-// Giữ alias tương thích ngược
-export const FREE_MODELS = ALL_MODELS;
 export const FREE_MODELS_METADATA = MODELS_CATALOG;
 
 export const corsHeaders = {
@@ -459,40 +267,8 @@ export async function checkAuth(request) {
   return false;
 }
 
-// Hợp nhất danh sách model từ upstream với MODELS_CATALOG để có đủ thông tin status & giá
-export function mergeModelsWithCatalog(upstreamList = []) {
-  const catalogMap = new Map(MODELS_CATALOG.map(m => [m.id, m]));
-  const result = [...MODELS_CATALOG];
-
-  for (const item of upstreamList) {
-    if (item && item.id && !catalogMap.has(item.id)) {
-      result.push({
-        id: item.id,
-        object: 'model',
-        created: item.created || 1626777600,
-        owned_by: item.owned_by || 'openai',
-        provider: item.owned_by || 'OpenAI',
-        provider_code: 'other',
-        free: false,
-        price_type: 'token',
-        price_label: 'Dựa trên token',
-        price_input: '1,00 ¥ / 1M',
-        price_output: '1,00 ¥ / 1M',
-        tags: ['Tools'],
-        description: `Mô hình ${item.id} từ upstream gateway.`,
-        supported_endpoint_types: item.supported_endpoint_types || ['openai'],
-        status: {
-          uptime: 95.0,
-          latency: '15.00s',
-          tps: '50.0t/s',
-          state: 'online',
-          bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-        }
-      });
-    }
-  }
-
-  return result;
+export function mergeModelsWithCatalog() {
+  return MODELS_CATALOG;
 }
 
 export async function proxyRequest(request, targetPath) {
@@ -521,30 +297,14 @@ export async function proxyRequest(request, targetPath) {
   }
 
   const cleanPath = (targetPath || '').replace(/^\/+/, '');
-  const upstreamBase = (process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, '');
-  const upstreamKey = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).trim();
 
-  // Nếu gọi danh sách /v1/models -> Trả về đầy đủ 15+ models (cả Free & Paid) kèm thông tin Status
+  // Nếu gọi danh sách /v1/models -> Chỉ trả về các model FREE kèm thông tin Status
   if (cleanPath === 'models' && request.method === 'GET') {
-    let merged = MODELS_CATALOG;
-    try {
-      const r = await fetch(`${upstreamBase}/models`, {
-        headers: { Authorization: `Bearer ${upstreamKey}` },
-      });
-      if (r.ok) {
-        const j = await r.json();
-        if (Array.isArray(j.data)) {
-          merged = mergeModelsWithCatalog(j.data);
-        }
-      }
-    } catch {
-      // Fallback sang MODELS_CATALOG nếu upstream chậm
-    }
-
     return new Response(
       JSON.stringify({
         object: 'list',
-        data: merged,
+        data: MODELS_CATALOG,
+        free_only: true,
         success: true
       }),
       {
@@ -556,6 +316,9 @@ export async function proxyRequest(request, targetPath) {
       }
     );
   }
+
+  const upstreamBase = (process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, '');
+  const upstreamKey = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).trim();
 
   // Extract query string (ignoring Vercel's rewrite param `path`)
   const url = new URL(request.url);
@@ -577,7 +340,18 @@ export async function proxyRequest(request, targetPath) {
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     try {
       const rawBody = await request.text();
-      if (rawBody) {
+      if (rawBody && cleanPath.includes('chat/completions')) {
+        try {
+          const parsed = JSON.parse(rawBody);
+          // Chặn các model trả phí: chỉ cho phép các model trong FREE_MODELS
+          if (!parsed.model || !FREE_MODELS.includes(parsed.model)) {
+            parsed.model = 'DeepSeek-V4-Flash';
+          }
+          fetchOptions.body = JSON.stringify(parsed);
+        } catch {
+          fetchOptions.body = rawBody;
+        }
+      } else {
         fetchOptions.body = rawBody;
       }
     } catch {

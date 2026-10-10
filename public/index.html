@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SLK Gateway — OpenAI v1 API &amp; Model Status Dashboard</title>
+  <title>SLK Gateway — OpenAI v1 Free API &amp; Model Status</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -56,7 +56,7 @@
         </div>
         <h1 class="text-2xl font-bold text-white tracking-tight mb-2">SLK Gateway</h1>
         <p class="text-xs text-slate-400 leading-relaxed">
-          Đăng nhập bằng <strong class="text-indigo-300">Discord</strong> để vào Dashboard tạo API Key, theo dõi <strong class="text-emerald-300">Model Status</strong> và kết nối <code class="text-emerald-400 font-mono">/v1</code> vào mọi ứng dụng.
+          Đăng nhập bằng <strong class="text-indigo-300">Discord</strong> để vào Dashboard tạo API Key, theo dõi <strong class="text-emerald-300">Model Status</strong> và dùng các mô hình AI <strong class="text-emerald-400">100% Free</strong> qua endpoint <code class="text-emerald-400 font-mono">/v1</code>.
         </p>
       </div>
 
@@ -86,8 +86,8 @@
           <span>Theo dõi <strong>Model Status</strong>, Uptime %, Trễ &amp; TPS trực quan</span>
         </div>
         <div class="flex items-center space-x-2.5">
-          <i data-lucide="cpu" class="w-4 h-4 text-cyan-400 shrink-0"></i>
-          <span>Đầy đủ 15 mô hình AI (DeepSeek-V4 Pro/Flash, GLM-5.3, Kimi-K3, Qwen3.8, MiniMax...)</span>
+          <i data-lucide="check-circle-2" class="w-4 h-4 text-cyan-400 shrink-0"></i>
+          <span>Chỉ lọc các mô hình AI <strong>100% Free (0 ¥)</strong> không tốn phí</span>
         </div>
       </div>
 
@@ -114,7 +114,7 @@
             <span class="font-bold text-base tracking-tight text-white whitespace-nowrap">SLK Gateway</span>
             <span class="text-[11px] px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold whitespace-nowrap">OpenAI /v1</span>
           </div>
-          <p class="text-[11px] text-slate-400 whitespace-nowrap hidden sm:block">AI API &amp; Model Status</p>
+          <p class="text-[11px] text-slate-400 whitespace-nowrap hidden sm:block">Free AI API &amp; Model Status</p>
         </div>
       </div>
 
@@ -126,7 +126,7 @@
         </button>
         <button onclick="switchTab('models')" id="nav-models" class="tab-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-slate-200 transition-all flex items-center space-x-2 whitespace-nowrap">
           <i data-lucide="activity" class="w-3.5 h-3.5 shrink-0 text-emerald-400"></i>
-          <span>Model Status (<span id="models-count-badge">15</span>)</span>
+          <span>Model Status (<span id="models-count-badge">7</span>)</span>
         </button>
         <button onclick="switchTab('chat')" id="nav-chat" class="tab-btn px-3.5 py-2 rounded-lg text-slate-400 hover:text-slate-200 transition-all flex items-center space-x-2 whitespace-nowrap">
           <i data-lucide="message-square" class="w-3.5 h-3.5 shrink-0"></i>
@@ -140,9 +140,9 @@
 
       <!-- User Profile & Status Indicator -->
       <div class="flex items-center space-x-2.5 shrink-0">
-        <button onclick="switchTab('models')" id="status-pill" class="hidden lg:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-400 whitespace-nowrap transition-all" title="Xem trạng thái 15 Models">
+        <button onclick="switchTab('models')" id="status-pill" class="hidden lg:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-400 whitespace-nowrap transition-all" title="Xem trạng thái các Model Free">
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-          <span id="status-text">15 Models Online</span>
+          <span id="status-text">7 Free Models Online</span>
         </button>
 
         <!-- Logged-in Discord Profile Box (Uniform rounded-lg) -->
@@ -162,7 +162,7 @@
     <!-- Mobile Navigation Bar -->
     <div class="flex md:hidden overflow-x-auto px-4 py-2 border-t border-slate-800/60 bg-[#0d131f] space-x-2 text-xs">
       <button onclick="switchTab('docs')" class="mobile-tab-btn active px-3 py-1.5 rounded-lg whitespace-nowrap" id="mobile-nav-docs">Dashboard &amp; Keys</button>
-      <button onclick="switchTab('models')" class="mobile-tab-btn px-3 py-1.5 rounded-lg text-slate-400 whitespace-nowrap" id="mobile-nav-models">Model Status (15)</button>
+      <button onclick="switchTab('models')" class="mobile-tab-btn px-3 py-1.5 rounded-lg text-slate-400 whitespace-nowrap" id="mobile-nav-models">Model Status (Free)</button>
       <button onclick="switchTab('chat')" class="mobile-tab-btn px-3 py-1.5 rounded-lg text-slate-400 whitespace-nowrap" id="mobile-nav-chat">Trò chuyện AI</button>
       <button onclick="switchTab('playground')" class="mobile-tab-btn px-3 py-1.5 rounded-lg text-slate-400 whitespace-nowrap" id="mobile-nav-playground">API Tester</button>
     </div>
@@ -182,7 +182,7 @@
           <div>
             <div class="flex items-center space-x-2 text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-1">
               <i data-lucide="zap" class="w-3.5 h-3.5"></i>
-              <span>Chuẩn giao thức OpenAI API (/v1)</span>
+              <span>Chuẩn giao thức OpenAI API (/v1) • 100% Free Models</span>
             </div>
             <h2 class="text-lg font-bold text-white">Thông Tin Kết Nối Endpoint <code class="text-indigo-400 font-mono">/v1</code></h2>
             <p class="text-slate-400 text-xs mt-0.5">
@@ -192,7 +192,7 @@
           <div class="flex items-center gap-2 shrink-0">
             <button onclick="switchTab('models')" class="inline-flex items-center space-x-1.5 text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-300 font-medium whitespace-nowrap transition-all">
               <i data-lucide="activity" class="w-3.5 h-3.5"></i>
-              <span>Xem Trạng Thái 15 Models</span>
+              <span>🆓 Xem Trạng Thái 7 Model Free</span>
             </button>
           </div>
         </div>
@@ -228,14 +228,14 @@
             </div>
           </div>
 
-          <!-- All 15 Models List String -->
+          <!-- Free Models List String -->
           <div class="p-4 rounded-lg bg-slate-950/90 border border-slate-800/90 flex flex-col justify-between gap-2.5">
             <div class="text-xs text-slate-400 font-medium flex items-center justify-between">
-              <span>Danh sách tất cả Model ID:</span>
-              <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono">15 models</span>
+              <span>Danh sách Model ID (100% Free):</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">7 free models</span>
             </div>
             <div class="flex items-center justify-between gap-2">
-              <code id="free-models-string" class="text-emerald-300 font-mono text-xs truncate">auto,DeepSeek-V4-Flash,DeepSeek-V4-Pro,DeepSeek-V4.1-Flash,glm-5.3,glm-5.3-flash,kimi-k3,longcat-2.5,MiMo-V2.6-Flash,MiniMax-M3.1-Flash,Qwen3.8-27B,Qwen3.8-Flash-Next,Qwen3-Embedding-8B,sensenova-6.8-flash-lite,sensenova-u1.5-lite</code>
+              <code id="free-models-string" class="text-emerald-300 font-mono text-xs truncate">DeepSeek-V4-Flash,auto,glm-5.3-flash,kimi-k3,longcat-2.5,MiMo-V2.6-Flash,sensenova-6.8-flash-lite</code>
               <button onclick="copyToClipboard('free-models-string')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium flex items-center space-x-1.5 shrink-0 border border-slate-700 transition-all">
                 <i data-lucide="copy" class="w-3.5 h-3.5"></i>
                 <span>Copy</span>
@@ -323,7 +323,7 @@
                 <li>Chọn Provider: <strong>OpenAI Compatible</strong></li>
                 <li><strong>Base URL</strong>: <code class="text-indigo-400 font-mono" id="cursor-endpoint">https://.../v1</code></li>
                 <li><strong>API Key</strong>: Dán mã <code class="text-emerald-400 font-mono">sk-nx-...</code> vừa tạo</li>
-                <li><strong>Model ID</strong>: <code class="text-emerald-400 font-mono">DeepSeek-V4-Pro</code> hoặc <code class="text-emerald-400 font-mono">glm-5.3</code></li>
+                <li><strong>Model ID (Free)</strong>: <code class="text-emerald-400 font-mono">DeepSeek-V4-Flash</code></li>
               </ul>
             </div>
 
@@ -336,7 +336,7 @@
                 <li><strong>Model Provider</strong>: OpenAI</li>
                 <li><strong>Endpoint</strong>: <code class="text-indigo-400 font-mono" id="nextchat-endpoint">https://...</code></li>
                 <li><strong>API Key</strong>: Dán mã <code class="text-emerald-400 font-mono">sk-nx-...</code> của bạn</li>
-                <li><strong>Custom Models</strong>: <code class="text-emerald-400 font-mono">DeepSeek-V4-Pro,glm-5.3,MiniMax-M3.1-Flash,kimi-k3</code></li>
+                <li><strong>Custom Models</strong>: <code class="text-emerald-400 font-mono">DeepSeek-V4-Flash,glm-5.3-flash,kimi-k3,longcat-2.5</code></li>
               </ul>
             </div>
 
@@ -349,7 +349,7 @@
                 <li>Chọn: <strong>OpenAI API / Custom</strong></li>
                 <li><strong>API Host / v1 URL</strong>: <code class="text-cyan-400 font-mono" id="chatbox-endpoint">https://.../v1</code></li>
                 <li><strong>API Key</strong>: Dán mã <code class="text-emerald-400 font-mono">sk-nx-...</code> của bạn</li>
-                <li><strong>Model</strong>: <code class="text-emerald-400 font-mono">MiniMax-M3.1-Flash</code> / <code class="text-emerald-400 font-mono">DeepSeek-V4-Flash</code></li>
+                <li><strong>Model</strong>: <code class="text-emerald-400 font-mono">DeepSeek-V4-Flash</code> / <code class="text-emerald-400 font-mono">longcat-2.5</code></li>
               </ul>
             </div>
           </div>
@@ -366,7 +366,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="DeepSeek-V4-Pro",
+    model="DeepSeek-V4-Flash",
     messages=[
         {"role": "user", "content": "Xin chào!"}
     ],
@@ -393,7 +393,7 @@ const openai = new OpenAI({
 });
 
 const stream = await openai.chat.completions.create({
-  model: 'DeepSeek-V4-Pro',
+  model: 'DeepSeek-V4-Flash',
   messages: [{ role: 'user', content: 'Xin chào!' }],
   stream: true,
 });
@@ -415,7 +415,7 @@ for await (const chunk of stream) {
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $USER_API_KEY" \
   -d '{
-    "model": "DeepSeek-V4-Pro",
+    "model": "DeepSeek-V4-Flash",
     "messages": [
       { "role": "user", "content": "Hello!" }
     ]
@@ -430,7 +430,7 @@ for await (const chunk of stream) {
     </section>
 
     <!-- ========================================== -->
-    <!-- TAB 2: MODELS & STATUS EXPLORER            -->
+    <!-- TAB 2: FREE MODELS & STATUS EXPLORER       -->
     <!-- ========================================== -->
     <section id="tab-models" class="tab-pane hidden space-y-6">
       <!-- Top Status Overview Banner -->
@@ -439,11 +439,11 @@ for await (const chunk of stream) {
           <div>
             <div class="flex items-center space-x-2 text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-1">
               <i data-lucide="activity" class="w-3.5 h-3.5"></i>
-              <span>Giám sát Trạng thái &amp; Định giá Mô hình (Real-time Model Status)</span>
+              <span>Giám sát Trạng thái Mô hình 100% Free (Real-time Model Status)</span>
             </div>
-            <h2 class="text-xl font-bold text-white">Quảng Trường Mô Hình &amp; Trạng Thái Hoạt Động</h2>
+            <h2 class="text-xl font-bold text-white">Trạng Thái Hoạt Động Các Mô Hình Miễn Phí (0 ¥)</h2>
             <p class="text-xs text-slate-400 mt-0.5">
-              Theo dõi tỷ lệ Uptime (24 chu kỳ), độ trễ (<code class="text-indigo-300 font-mono">Trễ</code>), tốc độ sinh token (<code class="text-emerald-300 font-mono">TPS</code>) và bảng giá của tất cả 15 mô hình.
+              Chỉ hiển thị và cho phép gọi các mô hình <strong class="text-emerald-400">100% Free (0 ¥ / yêu cầu)</strong> kèm biểu đồ Uptime 24 chu kỳ, độ trễ (<code class="text-indigo-300 font-mono">Trễ</code>) và <code class="text-emerald-300 font-mono">TPS</code>.
             </p>
           </div>
 
@@ -463,9 +463,9 @@ for await (const chunk of stream) {
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
           <div class="p-3.5 rounded-lg bg-slate-950/90 border border-slate-800/90 flex items-center justify-between">
             <div>
-              <div class="text-[11px] text-slate-400">Tổng số mô hình</div>
-              <div class="text-lg font-bold text-white font-mono mt-0.5" id="stat-total-models">15 Models</div>
-              <div class="text-[10px] text-indigo-400">9 Nhà cung cấp AI</div>
+              <div class="text-[11px] text-slate-400">Tổng số Model Free</div>
+              <div class="text-lg font-bold text-white font-mono mt-0.5" id="stat-total-models">7 Free Models</div>
+              <div class="text-[10px] text-emerald-400">100% Miễn phí (0 ¥)</div>
             </div>
             <div class="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-400">
               <i data-lucide="layers" class="w-4 h-4"></i>
@@ -475,8 +475,8 @@ for await (const chunk of stream) {
           <div class="p-3.5 rounded-lg bg-slate-950/90 border border-slate-800/90 flex items-center justify-between">
             <div>
               <div class="text-[11px] text-slate-400">Trạng thái ổn định</div>
-              <div class="text-lg font-bold text-emerald-400 font-mono mt-0.5" id="stat-healthy-models">10 / 15 Online</div>
-              <div class="text-[10px] text-slate-400">5 model đang tải cao</div>
+              <div class="text-lg font-bold text-emerald-400 font-mono mt-0.5" id="stat-healthy-models">5 / 7 Online</div>
+              <div class="text-[10px] text-slate-400">Hoạt động liên tục 24/7</div>
             </div>
             <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
               <i data-lucide="check-circle-2" class="w-4 h-4"></i>
@@ -486,7 +486,7 @@ for await (const chunk of stream) {
           <div class="p-3.5 rounded-lg bg-slate-950/90 border border-slate-800/90 flex items-center justify-between">
             <div>
               <div class="text-[11px] text-slate-400">Uptime Trung Bình</div>
-              <div class="text-lg font-bold text-cyan-400 font-mono mt-0.5" id="stat-avg-uptime">87.80%</div>
+              <div class="text-lg font-bold text-cyan-400 font-mono mt-0.5" id="stat-avg-uptime">90.00%</div>
               <div class="text-[10px] text-emerald-400">Chu kỳ 24 phiên gần nhất</div>
             </div>
             <div class="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-400">
@@ -497,8 +497,8 @@ for await (const chunk of stream) {
           <div class="p-3.5 rounded-lg bg-slate-950/90 border border-slate-800/90 flex items-center justify-between">
             <div>
               <div class="text-[11px] text-slate-400">Tốc độ sinh trung bình</div>
-              <div class="text-lg font-bold text-amber-300 font-mono mt-0.5" id="stat-avg-tps">53.4 t/s</div>
-              <div class="text-[10px] text-slate-400">Nhanh nhất: MiniMax (92.4t/s)</div>
+              <div class="text-lg font-bold text-amber-300 font-mono mt-0.5" id="stat-avg-tps">50.7 t/s</div>
+              <div class="text-[10px] text-slate-400">Nhanh nhất: SenseNova (~3.3s)</div>
             </div>
             <div class="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400">
               <i data-lucide="gauge" class="w-4 h-4"></i>
@@ -507,36 +507,23 @@ for await (const chunk of stream) {
         </div>
       </div>
 
-      <!-- Filter & Search Controls (Matching api.hcnsec.cn/pricing categories) -->
-      <div class="p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur-sm space-y-4">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <!-- Filter & Search Controls (Only Free Providers) -->
+      <div class="p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur-sm">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <!-- Provider Filters -->
           <div class="flex flex-wrap items-center gap-1.5" id="provider-filter-bar">
-            <button onclick="setModelProviderFilter('all')" data-provider="all" class="provider-chip active px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition-all">Tất cả Nhà cung cấp (15)</button>
-            <button onclick="setModelProviderFilter('deepseek')" data-provider="deepseek" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">DeepSeek (3)</button>
-            <button onclick="setModelProviderFilter('zhipu')" data-provider="zhipu" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Zhipu GLM (2)</button>
-            <button onclick="setModelProviderFilter('qwen')" data-provider="qwen" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Alibaba Qwen (3)</button>
+            <button onclick="setModelProviderFilter('all')" data-provider="all" class="provider-chip active px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition-all">Tất cả Free (7)</button>
+            <button onclick="setModelProviderFilter('deepseek')" data-provider="deepseek" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">DeepSeek (1)</button>
+            <button onclick="setModelProviderFilter('zhipu')" data-provider="zhipu" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Zhipu GLM (1)</button>
             <button onclick="setModelProviderFilter('moonshot')" data-provider="moonshot" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Moonshot (1)</button>
-            <button onclick="setModelProviderFilter('minimax')" data-provider="minimax" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">MiniMax (1)</button>
             <button onclick="setModelProviderFilter('longcat')" data-provider="longcat" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">LongCat (1)</button>
             <button onclick="setModelProviderFilter('mimo')" data-provider="mimo" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Xiaomi MiMo (1)</button>
-            <button onclick="setModelProviderFilter('sensenova')" data-provider="sensenova" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">SenseNova (2)</button>
+            <button onclick="setModelProviderFilter('sensenova')" data-provider="sensenova" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">SenseNova (1)</button>
             <button onclick="setModelProviderFilter('router')" data-provider="router" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">TrustedRouter (1)</button>
-          </div>
-        </div>
-
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
-          <!-- Price Type Filters -->
-          <div class="flex flex-wrap items-center gap-1.5" id="price-filter-bar">
-            <span class="text-xs text-slate-400 mr-1">Loại giá:</span>
-            <button onclick="setModelPriceFilter('all')" data-price="all" class="price-chip active px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-white border border-indigo-500/50">Tất cả (15)</button>
-            <button onclick="setModelPriceFilter('request')" data-price="request" class="price-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 text-slate-400 hover:text-white border border-slate-800">Theo yêu cầu (7)</button>
-            <button onclick="setModelPriceFilter('token')" data-price="token" class="price-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 text-slate-400 hover:text-white border border-slate-800">Dựa trên token (5)</button>
-            <button onclick="setModelPriceFilter('free')" data-price="free" class="price-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 text-emerald-400 hover:text-emerald-300 border border-slate-800">Miễn phí 0¥ (3)</button>
           </div>
 
           <!-- Search Box -->
-          <div class="relative w-full sm:w-64">
+          <div class="relative w-full lg:w-64 shrink-0">
             <i data-lucide="search" class="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5"></i>
             <input
               type="text"
@@ -562,34 +549,27 @@ for await (const chunk of stream) {
       <!-- Chat Header -->
       <div class="px-4 py-3 border-b border-slate-800 bg-slate-900/80 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center space-x-3">
-          <label class="text-xs text-slate-400 font-medium whitespace-nowrap">Chọn Model (15):</label>
+          <label class="text-xs text-slate-400 font-medium whitespace-nowrap">Model (100% Free):</label>
           <div class="relative">
             <select id="chat-model-select" class="appearance-none bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg pl-3 pr-8 py-1.5 font-mono focus:outline-none focus:border-indigo-500">
-              <option value="DeepSeek-V4-Flash">DeepSeek-V4-Flash (98.87%)</option>
-              <option value="DeepSeek-V4-Pro">DeepSeek-V4-Pro (76.84%)</option>
-              <option value="DeepSeek-V4.1-Flash">DeepSeek-V4.1-Flash (55.02%)</option>
-              <option value="auto">auto - TrustedRouter (96.35%)</option>
-              <option value="glm-5.3">glm-5.3 (97.00%)</option>
-              <option value="glm-5.3-flash">glm-5.3-flash (89.25%)</option>
-              <option value="kimi-k3">kimi-k3 (68.16%)</option>
-              <option value="longcat-2.5">longcat-2.5 (99.88% • 0¥)</option>
-              <option value="MiMo-V2.6-Flash">MiMo-V2.6-Flash (79.72% • 0¥)</option>
-              <option value="MiniMax-M3.1-Flash">MiniMax-M3.1-Flash (98.40% • 1.3s)</option>
-              <option value="Qwen3.8-27B">Qwen3.8-27B (91.20%)</option>
-              <option value="Qwen3.8-Flash-Next">Qwen3.8-Flash-Next (94.60%)</option>
-              <option value="sensenova-6.8-flash-lite">sensenova-6.8-flash-lite (97.80% • 0¥)</option>
-              <option value="sensenova-u1.5-lite">sensenova-u1.5-lite (64.20%)</option>
+              <option value="DeepSeek-V4-Flash">DeepSeek-V4-Flash (98.87% • 0¥ Free)</option>
+              <option value="auto">auto - TrustedRouter (96.35% • 0¥ Free)</option>
+              <option value="glm-5.3-flash">glm-5.3-flash (89.25% • 0¥ Free)</option>
+              <option value="kimi-k3">kimi-k3 (68.16% • 0¥ Free)</option>
+              <option value="longcat-2.5">longcat-2.5 (99.88% • 0¥ Free)</option>
+              <option value="MiMo-V2.6-Flash">MiMo-V2.6-Flash (79.72% • 0¥ Free)</option>
+              <option value="sensenova-6.8-flash-lite">sensenova-6.8-flash-lite (97.80% • 0¥ Free)</option>
             </select>
             <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none"></i>
           </div>
 
           <!-- Quick Model Badges -->
           <div class="hidden xl:flex items-center space-x-1.5">
-            <button onclick="selectModel('DeepSeek-V4-Pro')" class="text-[11px] px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 transition-all">DeepSeek-V4-Pro</button>
-            <button onclick="selectModel('glm-5.3')" class="text-[11px] px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 transition-all">GLM-5.3</button>
-            <button onclick="selectModel('MiniMax-M3.1-Flash')" class="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">⚡ MiniMax-M3.1</button>
-            <button onclick="selectModel('kimi-k3')" class="text-[11px] px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all">Kimi-K3</button>
-            <button onclick="selectModel('Qwen3.8-27B')" class="text-[11px] px-2.5 py-1 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 border border-violet-500/30 transition-all">Qwen3.8-27B</button>
+            <button onclick="selectModel('DeepSeek-V4-Flash')" class="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🆓 DeepSeek-V4-Flash</button>
+            <button onclick="selectModel('glm-5.3-flash')" class="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🆓 GLM-5.3-Flash</button>
+            <button onclick="selectModel('kimi-k3')" class="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🆓 Kimi-K3</button>
+            <button onclick="selectModel('longcat-2.5')" class="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🆓 LongCat-2.5</button>
+            <button onclick="selectModel('sensenova-6.8-flash-lite')" class="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">⚡ SenseNova-6.8</button>
           </div>
         </div>
 
@@ -613,7 +593,7 @@ for await (const chunk of stream) {
           </div>
           <h2 class="text-xl font-bold text-slate-100 mb-2">Chào mừng đến với SLK Gateway!</h2>
           <p class="text-slate-400 text-sm mb-6">
-            Chọn bất kỳ mô hình nào trong 15 mô hình (DeepSeek-V4-Pro, GLM-5.3, MiniMax-M3.1-Flash, Qwen3.8-27B, Kimi-K3...) ở góc trên để bắt đầu.
+            Chọn một trong 7 mô hình miễn phí (DeepSeek-V4-Flash, GLM-5.3-Flash, Kimi-K3, LongCat-2.5, MiMo-V2.6-Flash, SenseNova-6.8...) để bắt đầu trò chuyện.
           </p>
         </div>
       </div>
@@ -650,7 +630,7 @@ for await (const chunk of stream) {
           </button>
         </form>
         <div class="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-          <span>SLK Gateway • OpenAI SSE Streaming (15 Models)</span>
+          <span>SLK Gateway • OpenAI SSE Streaming (100% Free Models)</span>
           <span id="token-counter">0 ký tự</span>
         </div>
       </div>
@@ -689,7 +669,7 @@ for await (const chunk of stream) {
               rows="12"
               class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-200 focus:outline-none focus:border-indigo-500 resize-none flex-1"
             >{
-  "model": "MiniMax-M3.1-Flash",
+  "model": "sensenova-6.8-flash-lite",
   "messages": [
     {
       "role": "user",
@@ -777,7 +757,7 @@ for await (const chunk of stream) {
     <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
       <div>SLK Gateway • OpenAI <code class="text-indigo-400 font-mono">/v1</code> Compatible</div>
       <div class="flex items-center space-x-4">
-        <span class="text-emerald-400 font-medium">🟢 15 Models (Free &amp; Pro) + Real-time Model Status</span>
+        <span class="text-emerald-400 font-medium">🆓 100% Free Models + Real-time Model Status</span>
       </div>
     </div>
   </footer>

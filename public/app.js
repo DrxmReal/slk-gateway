@@ -331,9 +331,9 @@ function copyRawText(text, msg) {
 
 function copyKeyBundle(token) {
   const baseUrl = getBaseUrl();
-  const bundle = `OpenAI Base URL: ${baseUrl}\nAPI Key: ${token}\nModels: DeepSeek-V4-Pro, DeepSeek-V4-Flash, glm-5.3, MiniMax-M3.1-Flash, kimi-k3, Qwen3.8-27B, longcat-2.5`;
+  const bundle = `OpenAI Base URL: ${baseUrl}\nAPI Key: ${token}\nFree Models: DeepSeek-V4-Flash, auto, glm-5.3-flash, kimi-k3, longcat-2.5, MiMo-V2.6-Flash, sensenova-6.8-flash-lite`;
   navigator.clipboard.writeText(bundle).then(() => {
-    alert(`Đã sao chép trọn bộ cấu hình OpenAI /v1:\n\n${bundle}`);
+    alert(`Đã sao chép trọn bộ cấu hình OpenAI /v1 (Free Models):\n\n${bundle}`);
   });
 }
 
@@ -376,7 +376,7 @@ function updateGatewayUrls() {
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer ${activeKey}" \\
   -d '{
-    "model": "DeepSeek-V4-Pro",
+    "model": "DeepSeek-V4-Flash",
     "messages": [
       { "role": "user", "content": "Hello!" }
     ]
@@ -393,7 +393,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="DeepSeek-V4-Pro",  # Hoặc: glm-5.3, MiniMax-M3.1-Flash, kimi-k3, Qwen3.8-27B, longcat-2.5
+    model="DeepSeek-V4-Flash",  # Free: DeepSeek-V4-Flash, auto, glm-5.3-flash, kimi-k3, longcat-2.5, sensenova-6.8-flash-lite
     messages=[
         {"role": "user", "content": "Xin chào!"}
     ],
@@ -414,7 +414,7 @@ const openai = new OpenAI({
 });
 
 const stream = await openai.chat.completions.create({
-  model: 'DeepSeek-V4-Pro',
+  model: 'DeepSeek-V4-Flash',
   messages: [{ role: 'user', content: 'Xin chào!' }],
   stream: true,
 });
@@ -482,8 +482,8 @@ async function checkGatewayHealth() {
     const res = await fetch('/health');
     if (res.ok) {
       const data = await res.json();
-      const count = data.total_models || 15;
-      if (statusText) statusText.textContent = `${count} Models Online`;
+      const count = data.total_models || 7;
+      if (statusText) statusText.textContent = `${count} Free Models Online`;
       if (statusPill) statusPill.className = 'hidden lg:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-400 whitespace-nowrap transition-all';
     } else {
       throw new Error(`Status ${res.status}`);
@@ -513,7 +513,6 @@ async function fetchAvailableModels() {
 
     if (badge) badge.textContent = availableModels.length;
 
-    // Update Chat dropdown with all models (excluding pure embedding models from chat if desired, or keeping all)
     if (select && availableModels.length > 0) {
       const currentSelected = select.value;
       select.innerHTML = '';
@@ -522,8 +521,7 @@ async function fetchAvailableModels() {
         const opt = document.createElement('option');
         opt.value = m.id;
         const uptime = m.status?.uptime ? `${m.status.uptime}%` : 'Online';
-        const priceTag = m.free ? '0¥ Free' : (m.price_input || '');
-        opt.textContent = `${m.id} (${uptime}${priceTag ? ' • ' + priceTag : ''})`;
+        opt.textContent = `${m.id} (${uptime} • 0¥ Free)`;
         select.appendChild(opt);
       });
 
@@ -562,7 +560,7 @@ function updateModelStatusSummary() {
     }, 0) / total
   ).toFixed(1);
 
-  if (totalEl) totalEl.textContent = `${total} Models`;
+  if (totalEl) totalEl.textContent = `${total} Free Models`;
   if (healthyEl) healthyEl.textContent = `${healthyCount} / ${total} Online`;
   if (avgUptimeEl) avgUptimeEl.textContent = `${avgUptime}%`;
   if (avgTpsEl) avgTpsEl.textContent = `${avgTps} t/s`;
@@ -829,7 +827,7 @@ async function probeAllModelsLive() {
   const btnAll = document.getElementById('btn-probe-all');
   if (btnAll) {
     btnAll.disabled = true;
-    btnAll.innerHTML = `<span>Đang kiểm tra 15 Models...</span>`;
+    btnAll.innerHTML = `<span>Đang kiểm tra 7 Free Models...</span>`;
   }
 
   // Probe top fast models first so user sees immediate feedback
@@ -1156,7 +1154,7 @@ function handleTesterEndpointChange() {
   if (endpoint === '/v1/chat/completions') {
     bodyWrapper.classList.remove('hidden');
     payloadEl.value = JSON.stringify({
-      model: "MiniMax-M3.1-Flash",
+      model: "sensenova-6.8-flash-lite",
       messages: [
         { role: "user", content: "Kiểm tra kết nối SLK Gateway thành công hay chưa?" }
       ],

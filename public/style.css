@@ -8,23 +8,24 @@
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(71, 85, 105, 0.5);
-  border-radius: 9999px;
+  border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(99, 102, 241, 0.7);
 }
 
-/* Tab button active state */
+/* Unified Tab Button Active State */
 .tab-btn.active, .mobile-tab-btn.active {
   background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
   color: #ffffff;
-  box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.35);
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 10px 0 rgba(79, 70, 229, 0.3);
 }
 
 .code-lang-btn.active {
   background: #312e81;
-  color: #c7d2fe;
-  border: 1px solid #4338ca;
+  color: #e0e7ff;
+  border: 1px solid #4f46e5;
 }
 
 /* Typing cursor animation */
@@ -104,7 +105,7 @@
 
 .prose-ai pre {
   margin: 1rem 0;
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   overflow: hidden;
   border: 1px solid rgba(51, 65, 85, 0.7);
   background-color: #0b0f17 !important;
@@ -142,18 +143,17 @@
   background-color: rgba(15, 23, 42, 0.3);
 }
 
-/* User Message bubble */
+/* Unified Chat Message Containers */
 .user-bubble {
   background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
   color: #ffffff;
-  border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
+  border-radius: 0.75rem;
   box-shadow: 0 4px 15px -3px rgba(67, 56, 202, 0.3);
 }
 
-/* Assistant Message container */
 .assistant-bubble {
   background-color: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(51, 65, 85, 0.6);
-  border-radius: 1.25rem 1.25rem 1.25rem 0.25rem;
+  border-radius: 0.75rem;
   box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.2);
 }

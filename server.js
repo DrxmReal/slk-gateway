@@ -101,7 +101,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
     res.end(JSON.stringify({
       status: 'healthy',
-      service: 'AI API Gateway (Discord Auth + Free Models)',
+      service: 'SLK Gateway',
       upstream: UPSTREAM_BASE_URL,
       free_models: FREE_MODELS,
       discord_auth_required: true,

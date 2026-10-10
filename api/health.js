@@ -1,4 +1,4 @@
-import { corsHeaders } from './_utils.js';
+import { corsHeaders, FREE_MODELS } from './_utils.js';
 
 export const config = {
   runtime: 'edge',
@@ -9,15 +9,15 @@ export default function handler(request) {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const customKeySet = Boolean(process.env.CUSTOM_ACCESS_KEY);
   const upstreamBase = process.env.UPSTREAM_BASE_URL || 'https://api.hcnsec.cn/v1';
 
   return new Response(
     JSON.stringify({
       status: 'healthy',
-      service: 'AI API Gateway',
+      service: 'SLK Gateway',
       upstream: upstreamBase,
-      auth_required: customKeySet,
+      free_models: FREE_MODELS,
+      discord_auth_required: true,
       timestamp: new Date().toISOString()
     }),
     {

@@ -1,7 +1,7 @@
 {
-  "name": "ai-api-gateway",
+  "name": "slk-gateway",
   "version": "1.0.0",
-  "description": "High-performance OpenAI-compatible AI API Gateway and Web UI for Vercel",
+  "description": "SLK Gateway - OpenAI v1 Compatible AI API Dashboard & Proxy for Vercel",
   "type": "module",
   "main": "server.js",
   "scripts": {
@@ -9,6 +9,7 @@
     "dev": "node server.js"
   },
   "keywords": [
+    "slk-gateway",
     "ai",
     "openai",
     "proxy",
@@ -17,6 +18,6 @@
     "deepseek",
     "llm"
   ],
-  "author": "",
+  "author": "SLK",
   "license": "MIT"
 }

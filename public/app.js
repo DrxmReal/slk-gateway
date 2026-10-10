@@ -479,13 +479,13 @@ async function checkGatewayHealth() {
     const res = await fetch('/health');
     if (res.ok) {
       if (statusText) statusText.textContent = 'API Sẵn sàng';
-      if (statusPill) statusPill.className = 'hidden sm:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400';
+      if (statusPill) statusPill.className = 'hidden lg:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 whitespace-nowrap';
     } else {
       throw new Error(`Status ${res.status}`);
     }
   } catch {
     if (statusText) statusText.textContent = 'Chưa kết nối';
-    if (statusPill) statusPill.className = 'hidden sm:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400';
+    if (statusPill) statusPill.className = 'hidden lg:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/25 text-red-400 whitespace-nowrap';
   }
 }
 
@@ -532,10 +532,10 @@ async function fetchAvailableModels() {
         grid.innerHTML = '<div class="col-span-3 text-center text-slate-500 text-xs py-10">Không tìm thấy model nào.</div>';
       } else {
         grid.innerHTML = availableModels.map(m => `
-          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-emerald-500/50 transition-all flex flex-col justify-between group">
+          <div class="p-5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-emerald-500/50 transition-all flex flex-col justify-between group">
             <div>
               <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
+                <span class="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
                   🆓 100% FREE
                 </span>
                 <span class="text-[10px] text-slate-500 font-mono">${m.owned_by || 'free-tier'}</span>
@@ -547,7 +547,7 @@ async function fetchAvailableModels() {
                 ${m.description || 'Mô hình miễn phí tốc độ cao tương thích OpenAI.'}
               </p>
             </div>
-            <button onclick="selectModelAndChat('${m.id}')" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white text-xs font-medium transition-all flex items-center justify-center space-x-1.5">
+            <button onclick="selectModelAndChat('${m.id}')" class="w-full py-2 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white text-xs font-medium transition-all flex items-center justify-center space-x-1.5">
               <span>Chat ngay với Model này</span>
               <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
             </button>

@@ -184,23 +184,19 @@ async function fetchAvailableModels(force = false) {
     if (select && availableModels.length > 0) {
       const currentSelected = select.value;
       select.innerHTML = '';
-      
-      // Auto first
-      const autoOption = document.createElement('option');
-      autoOption.value = 'auto';
-      autoOption.textContent = 'auto (Mặc định)';
-      select.appendChild(autoOption);
 
       availableModels.forEach(m => {
-        if (m.id !== 'auto') {
-          const opt = document.createElement('option');
-          opt.value = m.id;
-          opt.textContent = m.id;
-          select.appendChild(opt);
-        }
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = `${m.id} (Free)`;
+        select.appendChild(opt);
       });
 
-      if (currentSelected) select.value = currentSelected;
+      if (currentSelected && availableModels.some(m => m.id === currentSelected)) {
+        select.value = currentSelected;
+      } else {
+        select.value = 'DeepSeek-V4-Flash';
+      }
     }
 
     // Render Models Grid (Tab 4)
@@ -209,26 +205,23 @@ async function fetchAvailableModels(force = false) {
         grid.innerHTML = '<div class="col-span-3 text-center text-slate-500 text-xs py-10">Không tìm thấy model nào.</div>';
       } else {
         grid.innerHTML = availableModels.map(m => `
-          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-indigo-500/50 transition-all flex flex-col justify-between group">
+          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-emerald-500/50 transition-all flex flex-col justify-between group">
             <div>
               <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">
-                  ${m.owned_by || 'openai'}
+                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
+                  🆓 100% FREE
                 </span>
-                <span class="text-[10px] text-slate-500 font-mono">id: ${m.object || 'model'}</span>
+                <span class="text-[10px] text-slate-500 font-mono">${m.owned_by || 'free-tier'}</span>
               </div>
-              <h4 class="font-bold text-slate-200 text-sm group-hover:text-indigo-300 transition-colors font-mono mb-2">
+              <h4 class="font-bold text-slate-200 text-sm group-hover:text-emerald-300 transition-colors font-mono mb-2">
                 ${m.id}
               </h4>
-              <div class="text-[11px] text-slate-400 space-y-1 mb-4">
-                <div class="flex items-center space-x-1">
-                  <span class="text-slate-500">Endpoints:</span>
-                  <span class="text-slate-300">${(m.supported_endpoint_types || ['openai']).join(', ')}</span>
-                </div>
-              </div>
+              <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">
+                ${m.description || 'Mô hình miễn phí tốc độ cao tương thích OpenAI.'}
+              </p>
             </div>
-            <button onclick="selectModelAndChat('${m.id}')" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white text-xs font-medium transition-all flex items-center justify-center space-x-1.5">
-              <span>Trò chuyện với Model này</span>
+            <button onclick="selectModelAndChat('${m.id}')" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white text-xs font-medium transition-all flex items-center justify-center space-x-1.5">
+              <span>Chat ngay với Model này</span>
               <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
             </button>
           </div>

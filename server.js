@@ -2,6 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FREE_MODELS, FREE_MODELS_METADATA } from './api/_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,8 +73,9 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
     res.end(JSON.stringify({
       status: 'healthy',
-      service: 'AI API Gateway (Local)',
+      service: 'AI API Gateway (Local - Free Models Only)',
       upstream: UPSTREAM_BASE_URL,
+      free_models: FREE_MODELS,
       auth_required: Boolean(CUSTOM_ACCESS_KEY),
       timestamp: new Date().toISOString()
     }));
@@ -98,16 +100,45 @@ const server = http.createServer(async (req, res) => {
 
     // Extract subpath
     let subpath = pathname.replace(/^\/api\/v1\/?/, '').replace(/^\/v1\/?/, '');
+
+    // Nếu gọi /v1/models -> chỉ trả về danh sách các model FREE
+    if (subpath === 'models' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.end(JSON.stringify({
+        object: 'list',
+        data: FREE_MODELS_METADATA,
+        free_only: true,
+        success: true
+      }));
+      return;
+    }
+
     const targetUrl = `${UPSTREAM_BASE_URL}/${subpath}${parsedUrl.search}`;
 
     // Read body if POST/PUT
-    let bodyBuffer = null;
+    let bodyPayload = null;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       const chunks = [];
       for await (const chunk of req) {
         chunks.push(chunk);
       }
-      bodyBuffer = Buffer.concat(chunks);
+      const rawBuffer = Buffer.concat(chunks);
+      const rawText = rawBuffer.toString('utf8');
+
+      // Kiểm tra và ép buộc sử dụng model FREE nếu gọi chat/completions
+      if (rawText && subpath.includes('chat/completions')) {
+        try {
+          const parsed = JSON.parse(rawText);
+          if (!parsed.model || !FREE_MODELS.includes(parsed.model)) {
+            parsed.model = 'DeepSeek-V4-Flash';
+          }
+          bodyPayload = JSON.stringify(parsed);
+        } catch {
+          bodyPayload = rawBuffer;
+        }
+      } else {
+        bodyPayload = rawBuffer;
+      }
     }
 
     try {
@@ -118,7 +149,7 @@ const server = http.createServer(async (req, res) => {
           'Content-Type': req.headers['content-type'] || 'application/json',
           'Accept': req.headers['accept'] || 'application/json',
         },
-        body: bodyBuffer,
+        body: bodyPayload,
       });
 
       // Prepare response headers
@@ -178,9 +209,9 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`====================================================`);
-  console.log(`🚀 AI API Gateway running at: http://localhost:${PORT}`);
+  console.log(`🚀 AI API Gateway (FREE MODELS ONLY) at: http://localhost:${PORT}`);
   console.log(`🌐 Base API URL: http://localhost:${PORT}/v1`);
-  console.log(`🔗 Upstream URL: ${UPSTREAM_BASE_URL}`);
+  console.log(`🆓 Free Models: ${FREE_MODELS.join(', ')}`);
   console.log(`🔑 Auth Protection: ${CUSTOM_ACCESS_KEY ? 'Enabled' : 'Disabled (Public)'}`);
   console.log(`====================================================`);
 });

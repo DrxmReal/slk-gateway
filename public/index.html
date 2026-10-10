@@ -123,25 +123,25 @@
       <!-- Chat Header -->
       <div class="px-4 py-3 border-b border-slate-800/80 bg-slate-900/70 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center space-x-3">
-          <label class="text-xs text-slate-400 font-medium">Model:</label>
+          <label class="text-xs text-slate-400 font-medium">Model (100% Free):</label>
           <div class="relative">
             <select id="chat-model-select" class="appearance-none bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg pl-3 pr-8 py-1.5 font-mono focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
-              <option value="auto">auto (Mặc định gợi ý)</option>
-              <option value="DeepSeek-V4-Flash">DeepSeek-V4-Flash</option>
-              <option value="DeepSeek-V4-Pro">DeepSeek-V4-Pro</option>
-              <option value="DeepSeek-V4.1-Flash">DeepSeek-V4.1-Flash</option>
-              <option value="glm-5.3">glm-5.3</option>
-              <option value="kimi-k3">kimi-k3</option>
-              <option value="Qwen3.8-27B">Qwen3.8-27B</option>
+              <option value="DeepSeek-V4-Flash">DeepSeek-V4-Flash (Free)</option>
+              <option value="auto">auto (Free - Tự động)</option>
+              <option value="glm-5.3-flash">glm-5.3-flash (Free)</option>
+              <option value="kimi-k3">kimi-k3 (Free)</option>
+              <option value="longcat-2.5">longcat-2.5 (Free)</option>
+              <option value="sensenova-6.8-flash-lite">sensenova-6.8-flash-lite (Free)</option>
             </select>
             <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none"></i>
           </div>
 
           <!-- Quick Model Badges -->
           <div class="hidden lg:flex items-center space-x-1.5">
-            <button onclick="selectModel('DeepSeek-V4-Flash')" class="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 transition-all">DeepSeek-V4</button>
-            <button onclick="selectModel('glm-5.3')" class="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 transition-all">GLM-5.3</button>
-            <button onclick="selectModel('kimi-k3')" class="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 transition-all">Kimi-K3</button>
+            <button onclick="selectModel('DeepSeek-V4-Flash')" class="text-[11px] px-2 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🆓 DeepSeek-V4-Flash</button>
+            <button onclick="selectModel('glm-5.3-flash')" class="text-[11px] px-2 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🆓 GLM-5.3-Flash</button>
+            <button onclick="selectModel('kimi-k3')" class="text-[11px] px-2 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🆓 Kimi-K3</button>
+            <button onclick="selectModel('longcat-2.5')" class="text-[11px] px-2 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🆓 LongCat-2.5</button>
           </div>
         </div>
 
@@ -361,7 +361,7 @@ main();</code></pre>
                 <li><strong>Model Provider</strong>: OpenAI</li>
                 <li><strong>API Key</strong>: nhập bất kỳ hoặc `CUSTOM_ACCESS_KEY`</li>
                 <li><strong>Endpoint</strong>: <code class="text-indigo-400" id="nextchat-endpoint">https://...</code></li>
-                <li><strong>Custom Models</strong>: <code class="text-emerald-400">auto,DeepSeek-V4-Flash,glm-5.3,kimi-k3</code></li>
+                <li><strong>Custom Models</strong>: <code class="text-emerald-400">DeepSeek-V4-Flash,auto,glm-5.3-flash,kimi-k3,longcat-2.5,sensenova-6.8-flash-lite</code></li>
               </ul>
             </div>
 

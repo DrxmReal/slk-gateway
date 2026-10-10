@@ -4,6 +4,23 @@ import {
   maskApiKey,
 } from './_utils.js';
 
+// Project URL mặc định từ project Supabase của Admin (hoqqtkglwphdbyfeegjq)
+export const DEFAULT_SUPABASE_URL = 'https://hoqqtkglwphdbyfeegjq.supabase.co';
+
+// Tự động chuyển đổi nếu người dùng dán link Dashboard (https://supabase.com/dashboard/project/xxxx) thành https://xxxx.supabase.co
+export function normalizeSupabaseUrl(raw = '') {
+  const trimmed = String(raw || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  const dashMatch = trimmed.match(/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i);
+  if (dashMatch && dashMatch[1]) {
+    return `https://${dashMatch[1]}.supabase.co`;
+  }
+  if (/^[a-z0-9]{15,30}$/i.test(trimmed)) {
+    return `https://${trimmed}.supabase.co`;
+  }
+  return trimmed;
+}
+
 // Runtime Supabase config (có thể cấu hình qua biến môi trường hoặc trực tiếp từ Admin Pool)
 let runtimeSupabaseUrl = '';
 let runtimeSupabaseKey = '';
@@ -12,19 +29,17 @@ let runtimeSupabaseKey = '';
 const memoryUserKeysMap = new Map();
 
 export function setRuntimeSupabaseConfig(url = '', key = '') {
-  if (url) runtimeSupabaseUrl = String(url).trim().replace(/\/+$/, '');
+  if (url) runtimeSupabaseUrl = normalizeSupabaseUrl(url);
   if (key) runtimeSupabaseKey = String(key).trim();
 }
 
 export function getSupabaseConfig() {
-  const url = (
+  const url = normalizeSupabaseUrl(
     runtimeSupabaseUrl ||
     process.env.SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    ''
-  )
-    .trim()
-    .replace(/\/+$/, '');
+    DEFAULT_SUPABASE_URL
+  );
 
   const key = (
     runtimeSupabaseKey ||
@@ -54,7 +69,7 @@ function getSupabaseHeaders(key, extra = {}) {
 // Kiểm tra kết nối tới bảng Supabase
 export async function testSupabaseConnection(customUrl = '', customKey = '') {
   const cfg = getSupabaseConfig();
-  const url = (customUrl || cfg.url).trim().replace(/\/+$/, '');
+  const url = normalizeSupabaseUrl(customUrl || cfg.url);
   const key = (customKey || cfg.key).trim();
 
   if (!url || !key) {

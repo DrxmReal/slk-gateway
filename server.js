@@ -306,3 +306,10 @@ server.listen(PORT, () => {
   console.log(`🆓 Số dư tặng mỗi user mới: 100.000 ₫ (trừ phí cố định theo mỗi request)`);
   console.log(`====================================================`);
 });
+
+// Giữ event loop luôn hoạt động kể cả khi chạy background daemon
+if (process.stdin.isTTY === false) {
+  try { process.stdin.resume(); } catch {}
+}
+setInterval(() => {}, 60000);
+

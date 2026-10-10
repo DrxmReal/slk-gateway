@@ -8,6 +8,7 @@ import {
   DEFAULT_DISCORD_CLIENT_ID,
   DEFAULT_DISCORD_CLIENT_SECRET,
   generateDiscordUserApiKey,
+  generateCustomDiscordApiKey,
   verifyDiscordUserApiKey,
 } from './api/_utils.js';
 
@@ -63,7 +64,7 @@ async function checkNodeAuth(req) {
   const customHeader = (req.headers['x-custom-key'] || '').trim();
   const candidate = token || customHeader;
 
-  if (candidate && candidate.startsWith('sk-dc-')) {
+  if (candidate && (candidate.startsWith('sk-dc-') || candidate.startsWith('sk-nx-'))) {
     const valid = await verifyDiscordUserApiKey(candidate);
     if (valid) return true;
   }
@@ -119,6 +120,44 @@ const server = http.createServer(async (req, res) => {
       clientId,
       hasSecret,
     }));
+    return;
+  }
+
+  // Create New API Key in Dashboard
+  if (pathname === '/api/keys' && req.method === 'POST') {
+    const authorized = await checkNodeAuth(req);
+    if (!authorized) {
+      res.writeHead(401, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.end(JSON.stringify({ success: false, error: 'Unauthorized: Vui lòng đăng nhập Discord trước.' }));
+      return;
+    }
+
+    try {
+      const body = await readJsonBody(req);
+      const discordUserId = String(body.discordUserId || '').trim();
+      const keyName = String(body.name || 'API Key mới').trim();
+
+      if (!discordUserId) {
+        res.writeHead(400, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+        res.end(JSON.stringify({ success: false, error: 'Thiếu Discord User ID.' }));
+        return;
+      }
+
+      const newKey = await generateCustomDiscordApiKey(discordUserId);
+      res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.end(JSON.stringify({
+        success: true,
+        key: {
+          id: `key_${Date.now()}`,
+          name: keyName,
+          token: newKey,
+          createdAt: new Date().toISOString(),
+        }
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
     return;
   }
 
@@ -208,7 +247,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(401, { 'Content-Type': 'application/json', ...CORS_HEADERS });
       res.end(JSON.stringify({
         error: {
-          message: 'Unauthorized: Bạn cần đăng nhập Discord trên website để lấy API Key sử dụng dịch vụ này.',
+          message: 'Unauthorized: Bạn cần đăng nhập Discord tại Dashboard để tạo API Key sử dụng dịch vụ này.',
           type: 'authentication_error',
           code: 'discord_login_required'
         }

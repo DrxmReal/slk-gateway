@@ -1,8 +1,8 @@
 // ==========================================
-// Nexus AI Gateway - Client Logic (Discord Auth + Free Models)
+// Nexus AI Dashboard - Client Logic (Discord Auth + Multi API Key Manager + Free Models)
 // ==========================================
 
-let currentTab = 'chat';
+let currentTab = 'docs';
 let availableModels = [];
 let chatHistory = [];
 let activeAbortController = null;
@@ -12,6 +12,8 @@ let systemPrompt = localStorage.getItem('nexus_system_prompt') || 'Bạn là tr�
 let chatTemperature = parseFloat(localStorage.getItem('nexus_temperature') || '0.7');
 let discordUser = null;
 let clientAccessToken = localStorage.getItem('nexus_discord_api_key') || '';
+let userApiKeys = [];
+
 let oauthConfig = {
   clientId: '1558375997416677426',
   hasSecret: true,
@@ -22,6 +24,13 @@ try {
   if (savedUser) discordUser = JSON.parse(savedUser);
 } catch {
   discordUser = null;
+}
+
+try {
+  const savedKeys = localStorage.getItem('nexus_user_api_keys');
+  if (savedKeys) userApiKeys = JSON.parse(savedKeys);
+} catch {
+  userApiKeys = [];
 }
 
 // Initialize Markdown parser
@@ -46,13 +55,11 @@ if (window.marked) {
 document.addEventListener('DOMContentLoaded', async () => {
   if (window.lucide) lucide.createIcons();
 
-  // Set redirect URI preview
   const redirectPreview = document.getElementById('oauth-redirect-preview');
   if (redirectPreview) {
     redirectPreview.textContent = `${window.location.origin}/`;
   }
 
-  // Load System prompt modal values
   const spEl = document.getElementById('modal-system-prompt');
   if (spEl) spEl.value = systemPrompt;
   const tempEl = document.getElementById('modal-temperature');
@@ -60,13 +67,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const tempVal = document.getElementById('temp-val');
   if (tempVal) tempVal.textContent = chatTemperature;
 
-  // 1. Fetch server Discord OAuth2 config
   await loadDiscordOAuthConfig();
-
-  // 2. Check if returning from Discord OAuth2 redirect (#access_token=... or ?code=...)
   await handleDiscordRedirectCallback();
-
-  // 3. Enforce Discord Login Gate
   updateAuthUI();
 
   if (window.hljs) hljs.highlightAll();
@@ -80,19 +82,11 @@ async function loadDiscordOAuthConfig() {
     const res = await fetch('/api/auth/config');
     if (res.ok) {
       const data = await res.json();
-      if (data.clientId) {
-        oauthConfig.clientId = data.clientId;
-        localStorage.setItem('nexus_discord_client_id', data.clientId);
-      }
+      if (data.clientId) oauthConfig.clientId = data.clientId;
       oauthConfig.hasSecret = Boolean(data.hasSecret);
     }
   } catch (err) {
     console.warn('Could not load auth config:', err);
-  }
-
-  const clientIdInput = document.getElementById('admin-discord-client-id');
-  if (clientIdInput && oauthConfig.clientId) {
-    clientIdInput.value = oauthConfig.clientId;
   }
 }
 
@@ -113,7 +107,6 @@ async function handleDiscordRedirectCallback() {
 
   if (!accessToken && !code) return;
 
-  // Show loading state on button
   const btn = document.getElementById('btn-discord-login');
   if (btn) {
     btn.disabled = true;
@@ -134,18 +127,19 @@ async function handleDiscordRedirectCallback() {
     });
 
     const data = await res.json();
-    // Clean URL hash/query
     window.history.replaceState({}, document.title, window.location.pathname);
 
     if (!res.ok || !data.success) {
       throw new Error(data.error || 'Xác thực Discord thất bại.');
     }
 
-    // Save session
     discordUser = data.user;
     clientAccessToken = data.apiKey;
     localStorage.setItem('nexus_discord_user', JSON.stringify(discordUser));
     localStorage.setItem('nexus_discord_api_key', clientAccessToken);
+
+    // Ensure default key is in userApiKeys list
+    ensureDefaultKeyInList(data.apiKey);
   } catch (err) {
     showDiscordError(err.message);
     if (btn) {
@@ -155,15 +149,30 @@ async function handleDiscordRedirectCallback() {
   }
 }
 
+function ensureDefaultKeyInList(masterKey) {
+  if (!masterKey) return;
+  const exists = userApiKeys.some(k => k.token === masterKey);
+  if (!exists) {
+    userApiKeys.unshift({
+      id: 'default_master',
+      name: 'Mặc định (Discord Master Key)',
+      token: masterKey,
+      createdAt: new Date().toISOString(),
+      isDefault: true,
+    });
+    localStorage.setItem('nexus_user_api_keys', JSON.stringify(userApiKeys));
+  }
+}
+
 function updateAuthUI() {
   const gate = document.getElementById('discord-login-gate');
   const userPill = document.getElementById('discord-user-pill');
   const userAvatar = document.getElementById('discord-user-avatar');
   const userName = document.getElementById('discord-user-name');
-  const keySpan = document.getElementById('user-personal-api-key');
 
   if (discordUser && clientAccessToken) {
-    // User is authenticated with Discord -> Unlock Website!
+    ensureDefaultKeyInList(clientAccessToken);
+
     if (gate) gate.classList.add('hidden');
     if (userPill) {
       userPill.classList.remove('hidden');
@@ -171,76 +180,28 @@ function updateAuthUI() {
     }
     if (userAvatar) userAvatar.src = discordUser.avatar_url;
     if (userName) userName.textContent = discordUser.global_name || discordUser.username;
-    if (keySpan) keySpan.textContent = clientAccessToken;
 
     updateGatewayUrls();
+    renderApiKeysTable();
     checkGatewayHealth();
     fetchAvailableModels();
   } else {
-    // Not logged in -> Lock Website with Discord Gate
     if (gate) gate.classList.remove('hidden');
     if (userPill) {
       userPill.classList.add('hidden');
       userPill.classList.remove('flex');
     }
-    // If Client ID is not configured yet, open config box automatically to guide Admin
-    if (!oauthConfig.clientId) {
-      const box = document.getElementById('discord-config-box');
-      if (box) box.classList.remove('hidden');
-    }
   }
 }
 
 function startDiscordOAuth() {
-  const clientId = (oauthConfig.clientId || document.getElementById('admin-discord-client-id')?.value || '').trim();
-  if (!clientId) {
-    showDiscordError('Chưa cấu hình Discord Client ID! Vui lòng nhập Discord Application Client ID ở mục Cấu hình bên dưới.');
-    const box = document.getElementById('discord-config-box');
-    if (box) box.classList.remove('hidden');
-    return;
-  }
-
+  const clientId = (oauthConfig.clientId || '1558375997416677426').trim();
   const redirectUri = encodeURIComponent(`${window.location.origin}/`);
   const scope = encodeURIComponent('identify');
-  // Sử dụng response_type=token (Implicit Flow) hoặc code nếu có Client Secret
   const responseType = oauthConfig.hasSecret ? 'code' : 'token';
 
   const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUri}&response_type=${responseType}&scope=${scope}`;
   window.location.href = discordAuthUrl;
-}
-
-function toggleDiscordConfigBox() {
-  const box = document.getElementById('discord-config-box');
-  if (box) box.classList.toggle('hidden');
-}
-
-async function saveDiscordOAuthConfig() {
-  const clientId = document.getElementById('admin-discord-client-id')?.value.trim() || '';
-  const clientSecret = document.getElementById('admin-discord-client-secret')?.value.trim() || '';
-
-  if (!clientId) {
-    showDiscordError('Vui lòng nhập Discord Client ID hợp lệ.');
-    return;
-  }
-
-  oauthConfig.clientId = clientId;
-  localStorage.setItem('nexus_discord_client_id', clientId);
-
-  try {
-    const res = await fetch('/api/auth/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId, clientSecret }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      oauthConfig.hasSecret = Boolean(data.hasSecret);
-    }
-  } catch {}
-
-  const errEl = document.getElementById('discord-auth-error');
-  if (errEl) errEl.classList.add('hidden');
-  alert('Đã lưu cấu hình Discord OAuth2! Bây giờ bạn có thể nhấn "Đăng nhập với Discord".');
 }
 
 function showDiscordError(msg) {
@@ -260,6 +221,126 @@ function logoutDiscord() {
 }
 
 // ------------------------------------------
+// Multi API Key Generator & Dashboard Table
+// ------------------------------------------
+async function handleCreateApiKey(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (!discordUser || !clientAccessToken) return;
+
+  const nameInput = document.getElementById('new-key-name-input');
+  const btn = document.getElementById('btn-create-key');
+  const customName = (nameInput?.value || '').trim() || `API Key #${userApiKeys.length + 1}`;
+
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/keys', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${clientAccessToken}`,
+      },
+      body: JSON.stringify({
+        discordUserId: discordUser.id,
+        name: customName,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Không thể tạo API Key.');
+    }
+
+    userApiKeys.unshift(data.key);
+    localStorage.setItem('nexus_user_api_keys', JSON.stringify(userApiKeys));
+
+    if (nameInput) nameInput.value = '';
+    renderApiKeysTable();
+    updateGatewayUrls();
+  } catch (err) {
+    alert(`Lỗi tạo API Key: ${err.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderApiKeysTable() {
+  const tbody = document.getElementById('api-keys-table-body');
+  if (!tbody) return;
+
+  const baseUrl = getBaseUrl();
+
+  if (userApiKeys.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="py-6 text-center text-slate-500">Chưa có API Key nào. Hãy nhấn "+ Tạo API Key" ở góc trên.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = userApiKeys.map((item) => {
+    const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : 'Hôm nay';
+    return `
+      <tr class="hover:bg-slate-800/30 transition-colors">
+        <td class="py-3.5 px-3 font-medium text-white">
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>${escapeHtml(item.name)}</span>
+          </div>
+        </td>
+        <td class="py-3.5 px-3 font-mono text-emerald-300">
+          <div class="flex items-center space-x-2">
+            <span class="bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg select-all">${item.token}</span>
+          </div>
+        </td>
+        <td class="py-3.5 px-3 font-mono text-indigo-300">
+          <span class="bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg select-all">${baseUrl}</span>
+        </td>
+        <td class="py-3.5 px-3 text-slate-400">${dateStr}</td>
+        <td class="py-3.5 px-3 text-right">
+          <div class="flex items-center justify-end space-x-1.5">
+            <button onclick="copyRawText('${item.token}', 'Đã sao chép API Key!')" class="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 text-[11px] font-medium transition-all">
+              Copy Key
+            </button>
+            <button onclick="copyKeyBundle('${item.token}')" class="px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-[11px] font-medium transition-all" title="Copy cả Base URL /v1 và API Key">
+              Copy Kèm Link /v1
+            </button>
+            ${!item.isDefault ? `
+              <button onclick="deleteApiKey('${item.id}')" class="p-1.5 rounded-lg bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all" title="Xóa Key">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            ` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function copyRawText(text, msg) {
+  navigator.clipboard.writeText(text).then(() => {
+    alert(msg || `Đã sao chép: ${text}`);
+  });
+}
+
+function copyKeyBundle(token) {
+  const baseUrl = getBaseUrl();
+  const bundle = `OpenAI Base URL: ${baseUrl}\nAPI Key: ${token}\nModel: DeepSeek-V4-Flash`;
+  navigator.clipboard.writeText(bundle).then(() => {
+    alert(`Đã sao chép trọn bộ cấu hình OpenAI /v1:\n\n${bundle}`);
+  });
+}
+
+function deleteApiKey(id) {
+  userApiKeys = userApiKeys.filter(k => k.id !== id);
+  localStorage.setItem('nexus_user_api_keys', JSON.stringify(userApiKeys));
+  renderApiKeysTable();
+}
+
+// ------------------------------------------
 // Dynamic Base URL & Code Snippets
 // ------------------------------------------
 function getBaseUrl() {
@@ -269,10 +350,16 @@ function getBaseUrl() {
 function updateGatewayUrls() {
   const baseUrl = getBaseUrl();
   const origin = window.location.origin;
-  const apiKey = clientAccessToken || 'sk-dc-your-key';
+  const activeKey = (userApiKeys[0]?.token) || clientAccessToken || 'sk-nx-your-key';
 
   const urlDisplay = document.getElementById('gateway-base-url');
   if (urlDisplay) urlDisplay.textContent = baseUrl;
+
+  const chatUrlDisplay = document.getElementById('gateway-chat-url');
+  if (chatUrlDisplay) chatUrlDisplay.textContent = `${baseUrl}/chat/completions`;
+
+  const cursorElem = document.getElementById('cursor-endpoint');
+  if (cursorElem) cursorElem.textContent = baseUrl;
 
   const nextchatElem = document.getElementById('nextchat-endpoint');
   if (nextchatElem) nextchatElem.textContent = origin;
@@ -280,19 +367,16 @@ function updateGatewayUrls() {
   const chatboxElem = document.getElementById('chatbox-endpoint');
   if (chatboxElem) chatboxElem.textContent = baseUrl;
 
-  // Templates with user's personal Discord API key
   const curlElem = document.getElementById('curl-code-block');
   if (curlElem) {
     curlElem.textContent = `curl -X POST "${baseUrl}/chat/completions" \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Authorization: Bearer ${activeKey}" \\
   -d '{
     "model": "DeepSeek-V4-Flash",
     "messages": [
-      { "role": "system", "content": "You are a helpful assistant." },
       { "role": "user", "content": "Hello!" }
-    ],
-    "stream": true
+    ]
   }'`;
   }
 
@@ -300,23 +384,21 @@ function updateGatewayUrls() {
   if (pythonElem) {
     pythonElem.textContent = `from openai import OpenAI
 
-# Khởi tạo client với API Key Discord của bạn
 client = OpenAI(
     base_url="${baseUrl}",
-    api_key="${apiKey}"
+    api_key="${activeKey}"
 )
 
 response = client.chat.completions.create(
     model="DeepSeek-V4-Flash",  # Free: DeepSeek-V4-Flash, auto, glm-5.3-flash, kimi-k3, longcat-2.5
     messages=[
-        {"role": "user", "content": "Xin chào, hãy giới thiệu về bạn."}
+        {"role": "user", "content": "Xin chào!"}
     ],
     stream=True
 )
 
 for chunk in response:
-    content = chunk.choices[0].delta.content or ""
-    print(content, end="", flush=True)`;
+    print(chunk.choices[0].delta.content or "", end="", flush=True)`;
   }
 
   const nodejsElem = document.getElementById('nodejs-code-block');
@@ -325,22 +407,18 @@ for chunk in response:
 
 const openai = new OpenAI({
   baseURL: '${baseUrl}',
-  apiKey: '${apiKey}',
+  apiKey: '${activeKey}',
 });
 
-async function main() {
-  const stream = await openai.chat.completions.create({
-    model: 'DeepSeek-V4-Flash',
-    messages: [{ role: 'user', content: 'Giải thích cơ chế Proxy API?' }],
-    stream: true,
-  });
+const stream = await openai.chat.completions.create({
+  model: 'DeepSeek-V4-Flash',
+  messages: [{ role: 'user', content: 'Xin chào!' }],
+  stream: true,
+});
 
-  for await (const chunk of stream) {
-    process.stdout.write(chunk.choices[0]?.delta?.content || '');
-  }
-}
-
-main();`;
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content || '');
+}`;
   }
 }
 
@@ -841,12 +919,13 @@ async function executeApiTest() {
   outputEl.textContent = 'Đang đợi phản hồi từ upstream API...';
 
   const startTime = performance.now();
+  const activeKey = (userApiKeys[0]?.token) || clientAccessToken;
 
   try {
     const isPost = endpoint.includes('chat/completions');
     const headers = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${clientAccessToken}`,
+      'Authorization': `Bearer ${activeKey}`,
     };
 
     const fetchOptions = {

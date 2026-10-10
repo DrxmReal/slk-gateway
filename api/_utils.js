@@ -85,25 +85,52 @@ export function handleOptions() {
   });
 }
 
-// Tạo API Key cá nhân dựa trên Discord User ID
-export async function generateDiscordUserApiKey(discordUserId) {
-  const secret = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).slice(0, 16);
-  const raw = `${discordUserId}:${secret}`;
+async function sha256Hex(input) {
   const encoder = new TextEncoder();
-  const data = encoder.encode(raw);
+  const data = encoder.encode(input);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 24);
-  return `sk-dc-${discordUserId}-${hashHex}`;
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Tạo API Key mặc định dựa trên Discord User ID (sk-dc-<uid>-<sig>)
+export async function generateDiscordUserApiKey(discordUserId) {
+  const secret = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).slice(0, 16);
+  const hashHex = await sha256Hex(`${discordUserId}:${secret}`);
+  return `sk-dc-${discordUserId}-${hashHex.slice(0, 24)}`;
+}
+
+// Tạo API Key mới có salt ngẫu nhiên trong Dashboard (sk-nx-<uid>-<salt>-<sig>)
+export async function generateCustomDiscordApiKey(discordUserId, customSalt = '') {
+  const secret = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).slice(0, 16);
+  const salt = customSalt || Math.random().toString(36).substring(2, 10);
+  const hashHex = await sha256Hex(`${discordUserId}:${salt}:${secret}`);
+  return `sk-nx-${discordUserId}-${salt}-${hashHex.slice(0, 20)}`;
 }
 
 export async function verifyDiscordUserApiKey(token) {
-  if (!token || !token.startsWith('sk-dc-')) return false;
-  const parts = token.split('-');
-  if (parts.length < 4) return false;
-  const discordUserId = parts[2];
-  const expectedKey = await generateDiscordUserApiKey(discordUserId);
-  return token === expectedKey;
+  if (!token) return false;
+
+  // Kiểm tra định dạng sk-dc-<uid>-<sig>
+  if (token.startsWith('sk-dc-')) {
+    const parts = token.split('-');
+    if (parts.length < 4) return false;
+    const discordUserId = parts[2];
+    const expectedKey = await generateDiscordUserApiKey(discordUserId);
+    return token === expectedKey;
+  }
+
+  // Kiểm tra định dạng key tạo thêm trong Dashboard: sk-nx-<uid>-<salt>-<sig>
+  if (token.startsWith('sk-nx-')) {
+    const parts = token.split('-');
+    if (parts.length < 5) return false;
+    const discordUserId = parts[2];
+    const salt = parts[3];
+    const expectedKey = await generateCustomDiscordApiKey(discordUserId, salt);
+    return token === expectedKey;
+  }
+
+  return false;
 }
 
 export async function checkAuth(request) {
@@ -114,8 +141,8 @@ export async function checkAuth(request) {
 
   const candidate = token || customHeader;
 
-  // Chấp nhận key sinh từ tài khoản Discord đã đăng nhập (sk-dc-...)
-  if (candidate && candidate.startsWith('sk-dc-')) {
+  // Chấp nhận key sinh từ tài khoản Discord (sk-dc-... hoặc sk-nx-...)
+  if (candidate && (candidate.startsWith('sk-dc-') || candidate.startsWith('sk-nx-'))) {
     const validDiscordKey = await verifyDiscordUserApiKey(candidate);
     if (validDiscordKey) return true;
   }
@@ -125,7 +152,6 @@ export async function checkAuth(request) {
     return true;
   }
 
-  // Bắt buộc phải có key Discord hợp lệ (hoặc CUSTOM_ACCESS_KEY nếu được cấu hình)
   return false;
 }
 
@@ -139,9 +165,9 @@ export async function proxyRequest(request, targetPath) {
     return new Response(
       JSON.stringify({
         error: {
-          message: 'Unauthorized: Bạn cần đăng nhập Discord trên website để lấy API Key sử dụng dịch vụ này.',
+          message: 'Unauthorized: API Key không hợp lệ hoặc bị thiếu. Vui lòng đăng nhập Discord tại Dashboard để tạo API Key.',
           type: 'authentication_error',
-          code: 'discord_login_required'
+          code: 'invalid_api_key'
         }
       }),
       {

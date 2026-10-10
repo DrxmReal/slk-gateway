@@ -3,14 +3,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  FREE_MODELS,
-  FREE_MODELS_METADATA,
+  ALL_MODELS,
+  MODELS_CATALOG,
+  mergeModelsWithCatalog,
   DEFAULT_DISCORD_CLIENT_ID,
   DEFAULT_DISCORD_CLIENT_SECRET,
   generateDiscordUserApiKey,
   generateCustomDiscordApiKey,
   verifyDiscordUserApiKey,
 } from './api/_utils.js';
+import { probeSingleModel } from './api/model-status.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -103,7 +105,8 @@ const server = http.createServer(async (req, res) => {
       status: 'healthy',
       service: 'SLK Gateway',
       upstream: UPSTREAM_BASE_URL,
-      free_models: FREE_MODELS,
+      total_models: ALL_MODELS.length,
+      models: ALL_MODELS,
       discord_auth_required: true,
       timestamp: new Date().toISOString()
     }));
@@ -119,6 +122,32 @@ const server = http.createServer(async (req, res) => {
       configured: Boolean(clientId),
       clientId,
       hasSecret,
+    }));
+    return;
+  }
+
+  // Real-time Model Status & Probe Endpoint
+  if (pathname === '/api/model-status') {
+    const authorized = await checkNodeAuth(req);
+    if (!authorized) {
+      res.writeHead(401, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
+      return;
+    }
+
+    const targetModel = parsedUrl.searchParams.get('model');
+    if (targetModel) {
+      const probe = await probeSingleModel(targetModel, UPSTREAM_BASE_URL, UPSTREAM_API_KEY);
+      res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.end(JSON.stringify({ success: true, probe, timestamp: new Date().toISOString() }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+    res.end(JSON.stringify({
+      success: true,
+      models: MODELS_CATALOG,
+      timestamp: new Date().toISOString(),
     }));
     return;
   }
@@ -258,13 +287,25 @@ const server = http.createServer(async (req, res) => {
     // Extract subpath
     let subpath = pathname.replace(/^\/api\/v1\/?/, '').replace(/^\/v1\/?/, '');
 
-    // Nếu gọi /v1/models -> chỉ trả về danh sách các model FREE
+    // Nếu gọi /v1/models -> trả về đầy đủ 15+ models (Free & Paid) kèm thông tin Status
     if (subpath === 'models' && req.method === 'GET') {
+      let merged = MODELS_CATALOG;
+      try {
+        const r = await fetch(`${UPSTREAM_BASE_URL}/models`, {
+          headers: { Authorization: `Bearer ${UPSTREAM_API_KEY}` },
+        });
+        if (r.ok) {
+          const j = await r.json();
+          if (Array.isArray(j.data)) {
+            merged = mergeModelsWithCatalog(j.data);
+          }
+        }
+      } catch {}
+
       res.writeHead(200, { 'Content-Type': 'application/json', ...CORS_HEADERS });
       res.end(JSON.stringify({
         object: 'list',
-        data: FREE_MODELS_METADATA,
-        free_only: true,
+        data: merged,
         success: true
       }));
       return;
@@ -272,30 +313,14 @@ const server = http.createServer(async (req, res) => {
 
     const targetUrl = `${UPSTREAM_BASE_URL}/${subpath}${parsedUrl.search}`;
 
-    // Read body if POST/PUT
+    // Read body if POST/PUT (forward any model directly without overriding)
     let bodyPayload = null;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       const chunks = [];
       for await (const chunk of req) {
         chunks.push(chunk);
       }
-      const rawBuffer = Buffer.concat(chunks);
-      const rawText = rawBuffer.toString('utf8');
-
-      // Kiểm tra và ép buộc sử dụng model FREE nếu gọi chat/completions
-      if (rawText && subpath.includes('chat/completions')) {
-        try {
-          const parsed = JSON.parse(rawText);
-          if (!parsed.model || !FREE_MODELS.includes(parsed.model)) {
-            parsed.model = 'DeepSeek-V4-Flash';
-          }
-          bodyPayload = JSON.stringify(parsed);
-        } catch {
-          bodyPayload = rawBuffer;
-        }
-      } else {
-        bodyPayload = rawBuffer;
-      }
+      bodyPayload = Buffer.concat(chunks);
     }
 
     try {
@@ -366,9 +391,9 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`====================================================`);
-  console.log(`🚀 AI API Gateway (Discord Auth + Free Models) at: http://localhost:${PORT}`);
+  console.log(`🚀 SLK Gateway (All 15 Models + Model Status) at: http://localhost:${PORT}`);
   console.log(`🌐 Base API URL: http://localhost:${PORT}/v1`);
-  console.log(`🆓 Free Models: ${FREE_MODELS.join(', ')}`);
+  console.log(`🤖 Total Models (${ALL_MODELS.length}): ${ALL_MODELS.join(', ')}`);
   console.log(`🔒 Discord Client ID: ${process.env.DISCORD_CLIENT_ID || DEFAULT_DISCORD_CLIENT_ID}`);
   console.log(`====================================================`);
 });

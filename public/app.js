@@ -1,11 +1,15 @@
 // ==========================================
-// Nexus AI Dashboard - Client Logic (Discord Auth + Multi API Key Manager + Free Models)
+// SLK Gateway Dashboard - Client Logic (Discord Auth + Multi API Key Manager + 15 Models & Status)
 // ==========================================
 
 let currentTab = 'docs';
 let availableModels = [];
 let chatHistory = [];
 let activeAbortController = null;
+
+// Model Status Filters
+let activeProviderFilter = 'all';
+let activePriceFilter = 'all';
 
 // Settings & Discord Session
 let systemPrompt = localStorage.getItem('nexus_system_prompt') || 'Bạn là trợ lý AI hữu ích, thông minh và phản hồi nhanh chóng bằng tiếng Việt.';
@@ -138,7 +142,6 @@ async function handleDiscordRedirectCallback() {
     localStorage.setItem('nexus_discord_user', JSON.stringify(discordUser));
     localStorage.setItem('nexus_discord_api_key', clientAccessToken);
 
-    // Ensure default key is in userApiKeys list
     ensureDefaultKeyInList(data.apiKey);
   } catch (err) {
     showDiscordError(err.message);
@@ -328,7 +331,7 @@ function copyRawText(text, msg) {
 
 function copyKeyBundle(token) {
   const baseUrl = getBaseUrl();
-  const bundle = `OpenAI Base URL: ${baseUrl}\nAPI Key: ${token}\nModel: DeepSeek-V4-Flash`;
+  const bundle = `OpenAI Base URL: ${baseUrl}\nAPI Key: ${token}\nModels: DeepSeek-V4-Pro, DeepSeek-V4-Flash, glm-5.3, MiniMax-M3.1-Flash, kimi-k3, Qwen3.8-27B, longcat-2.5`;
   navigator.clipboard.writeText(bundle).then(() => {
     alert(`Đã sao chép trọn bộ cấu hình OpenAI /v1:\n\n${bundle}`);
   });
@@ -373,7 +376,7 @@ function updateGatewayUrls() {
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer ${activeKey}" \\
   -d '{
-    "model": "DeepSeek-V4-Flash",
+    "model": "DeepSeek-V4-Pro",
     "messages": [
       { "role": "user", "content": "Hello!" }
     ]
@@ -390,7 +393,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="DeepSeek-V4-Flash",  # Free: DeepSeek-V4-Flash, auto, glm-5.3-flash, kimi-k3, longcat-2.5
+    model="DeepSeek-V4-Pro",  # Hoặc: glm-5.3, MiniMax-M3.1-Flash, kimi-k3, Qwen3.8-27B, longcat-2.5
     messages=[
         {"role": "user", "content": "Xin chào!"}
     ],
@@ -411,7 +414,7 @@ const openai = new OpenAI({
 });
 
 const stream = await openai.chat.completions.create({
-  model: 'DeepSeek-V4-Flash',
+  model: 'DeepSeek-V4-Pro',
   messages: [{ role: 'user', content: 'Xin chào!' }],
   stream: true,
 });
@@ -478,8 +481,10 @@ async function checkGatewayHealth() {
   try {
     const res = await fetch('/health');
     if (res.ok) {
-      if (statusText) statusText.textContent = 'API Sẵn sàng';
-      if (statusPill) statusPill.className = 'hidden lg:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 whitespace-nowrap';
+      const data = await res.json();
+      const count = data.total_models || 15;
+      if (statusText) statusText.textContent = `${count} Models Online`;
+      if (statusPill) statusPill.className = 'hidden lg:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-400 whitespace-nowrap transition-all';
     } else {
       throw new Error(`Status ${res.status}`);
     }
@@ -490,13 +495,12 @@ async function checkGatewayHealth() {
 }
 
 // ------------------------------------------
-// Fetch Available Models from /v1/models
+// Fetch Available Models & Render Model Status Cards
 // ------------------------------------------
 async function fetchAvailableModels() {
   if (!clientAccessToken) return;
 
   const badge = document.getElementById('models-count-badge');
-  const grid = document.getElementById('models-grid');
   const select = document.getElementById('chat-model-select');
 
   try {
@@ -509,6 +513,7 @@ async function fetchAvailableModels() {
 
     if (badge) badge.textContent = availableModels.length;
 
+    // Update Chat dropdown with all models (excluding pure embedding models from chat if desired, or keeping all)
     if (select && availableModels.length > 0) {
       const currentSelected = select.value;
       select.innerHTML = '';
@@ -516,7 +521,9 @@ async function fetchAvailableModels() {
       availableModels.forEach(m => {
         const opt = document.createElement('option');
         opt.value = m.id;
-        opt.textContent = `${m.id} (Free)`;
+        const uptime = m.status?.uptime ? `${m.status.uptime}%` : 'Online';
+        const priceTag = m.free ? '0¥ Free' : (m.price_input || '');
+        opt.textContent = `${m.id} (${uptime}${priceTag ? ' • ' + priceTag : ''})`;
         select.appendChild(opt);
       });
 
@@ -527,37 +534,312 @@ async function fetchAvailableModels() {
       }
     }
 
-    if (grid) {
-      if (availableModels.length === 0) {
-        grid.innerHTML = '<div class="col-span-3 text-center text-slate-500 text-xs py-10">Không tìm thấy model nào.</div>';
-      } else {
-        grid.innerHTML = availableModels.map(m => `
-          <div class="p-5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-emerald-500/50 transition-all flex flex-col justify-between group">
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
-                  🆓 100% FREE
-                </span>
-                <span class="text-[10px] text-slate-500 font-mono">${m.owned_by || 'free-tier'}</span>
+    updateModelStatusSummary();
+    renderModelsStatusGrid();
+  } catch (err) {
+    console.error('Error fetching models:', err);
+  }
+}
+
+function updateModelStatusSummary() {
+  if (!availableModels.length) return;
+
+  const totalEl = document.getElementById('stat-total-models');
+  const healthyEl = document.getElementById('stat-healthy-models');
+  const avgUptimeEl = document.getElementById('stat-avg-uptime');
+  const avgTpsEl = document.getElementById('stat-avg-tps');
+
+  const total = availableModels.length;
+  const healthyCount = availableModels.filter(m => (m.status?.uptime || 90) >= 85).length;
+  const avgUptime = (
+    availableModels.reduce((sum, m) => sum + (m.status?.uptime || 95), 0) / total
+  ).toFixed(2);
+
+  const avgTps = (
+    availableModels.reduce((sum, m) => {
+      const num = parseFloat(String(m.status?.tps || '45').replace(/[^\d.]/g, '')) || 45;
+      return sum + num;
+    }, 0) / total
+  ).toFixed(1);
+
+  if (totalEl) totalEl.textContent = `${total} Models`;
+  if (healthyEl) healthyEl.textContent = `${healthyCount} / ${total} Online`;
+  if (avgUptimeEl) avgUptimeEl.textContent = `${avgUptime}%`;
+  if (avgTpsEl) avgTpsEl.textContent = `${avgTps} t/s`;
+}
+
+function setModelProviderFilter(providerCode) {
+  activeProviderFilter = providerCode;
+  document.querySelectorAll('.provider-chip').forEach(btn => {
+    if (btn.getAttribute('data-provider') === providerCode) {
+      btn.className = 'provider-chip active px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition-all';
+    } else {
+      btn.className = 'provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all';
+    }
+  });
+  renderModelsStatusGrid();
+}
+
+function setModelPriceFilter(priceType) {
+  activePriceFilter = priceType;
+  document.querySelectorAll('.price-chip').forEach(btn => {
+    if (btn.getAttribute('data-price') === priceType) {
+      btn.className = 'price-chip active px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-white border border-indigo-500/50';
+    } else {
+      btn.className = 'price-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 text-slate-400 hover:text-white border border-slate-800';
+    }
+  });
+  renderModelsStatusGrid();
+}
+
+function getProviderBadgeHtml(providerCode, providerName) {
+  const styles = {
+    router: { bg: 'bg-slate-800 text-white border-slate-700', letter: 'A' },
+    deepseek: { bg: 'bg-blue-600/20 text-blue-400 border-blue-500/30', letter: 'DS' },
+    zhipu: { bg: 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30', letter: 'GLM' },
+    moonshot: { bg: 'bg-slate-800 text-slate-200 border-slate-700', letter: 'K3' },
+    longcat: { bg: 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30', letter: 'LC' },
+    mimo: { bg: 'bg-amber-600/20 text-amber-300 border-amber-500/30', letter: 'MI' },
+    minimax: { bg: 'bg-rose-600/20 text-rose-400 border-rose-500/30', letter: 'MM' },
+    qwen: { bg: 'bg-violet-600/20 text-violet-400 border-violet-500/30', letter: 'QW' },
+    sensenova: { bg: 'bg-cyan-600/20 text-cyan-400 border-cyan-500/30', letter: 'SN' },
+  };
+  const st = styles[providerCode] || { bg: 'bg-slate-800 text-slate-300 border-slate-700', letter: (providerName || 'AI').slice(0, 2).toUpperCase() };
+  return `<div class="w-9 h-9 rounded-lg ${st.bg} border flex items-center justify-center font-mono font-bold text-xs shrink-0">${st.letter}</div>`;
+}
+
+function renderStatusBarsHtml(bars = []) {
+  const list = Array.isArray(bars) && bars.length > 0
+    ? bars
+    : [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
+
+  return list.map(val => {
+    if (val === 1) {
+      return '<span class="w-[3px] h-3.5 rounded-[1px] bg-emerald-400 inline-block"></span>';
+    }
+    if (val === 2) {
+      return '<span class="w-[3px] h-3.5 rounded-[1px] bg-amber-400 inline-block"></span>';
+    }
+    return '<span class="w-[3px] h-3.5 rounded-[1px] bg-rose-500 inline-block"></span>';
+  }).join('');
+}
+
+function renderModelsStatusGrid() {
+  const grid = document.getElementById('models-grid');
+  if (!grid) return;
+
+  const searchQuery = (document.getElementById('model-search-input')?.value || '').trim().toLowerCase();
+
+  const filtered = availableModels.filter(m => {
+    if (activeProviderFilter !== 'all' && m.provider_code !== activeProviderFilter) {
+      return false;
+    }
+    if (activePriceFilter !== 'all' && m.price_type !== activePriceFilter) {
+      return false;
+    }
+    if (searchQuery) {
+      const haystack = `${m.id} ${m.provider || ''} ${m.description || ''} ${(m.tags || []).join(' ')} ${(m.supported_endpoint_types || []).join(' ')}`.toLowerCase();
+      if (!haystack.includes(searchQuery)) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div class="col-span-full p-10 rounded-xl bg-slate-900/50 border border-slate-800 text-center text-slate-400 text-xs">
+        Không tìm thấy mô hình nào khớp với bộ lọc hiện tại.
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(m => {
+    const status = m.status || { uptime: 95.0, latency: '15.0s', tps: '45.0t/s', bars: [] };
+    const uptimeVal = Number(status.uptime || 95);
+
+    let uptimeColor = 'text-emerald-400';
+    if (uptimeVal < 65) uptimeColor = 'text-rose-400';
+    else if (uptimeVal < 85) uptimeColor = 'text-amber-400';
+
+    let priceTypeBadge = '';
+    if (m.price_type === 'free' || m.free) {
+      priceTypeBadge = `<span class="text-[11px] font-semibold text-amber-400">Giá linh hoạt (Miễn phí)</span>`;
+    } else if (m.price_type === 'token') {
+      priceTypeBadge = `<span class="text-[11px] font-semibold text-indigo-400">Dựa trên token</span>`;
+    } else {
+      priceTypeBadge = `<span class="text-[11px] font-semibold text-rose-400">Theo yêu cầu</span>`;
+    }
+
+    const priceDisplay = m.price_output
+      ? `<div class="grid grid-cols-2 gap-2 text-xs mt-1">
+           <div><span class="text-[10px] text-slate-500 block">Đầu vào</span><strong class="text-white font-mono">${m.price_input}</strong></div>
+           <div><span class="text-[10px] text-slate-500 block">Đầu ra</span><strong class="text-white font-mono">${m.price_output}</strong></div>
+         </div>`
+      : `<div class="mt-1"><strong class="text-sm text-white font-mono">${m.price_input || '0 ¥ / yêu cầu'}</strong></div>`;
+
+    const tagsStr = (m.tags || ['Tools']).join(', ');
+    const endpointsStr = (m.supported_endpoint_types || ['openai']).join(', ');
+
+    return `
+      <div id="model-card-${m.id}" class="p-5 rounded-xl bg-[#111622]/90 border border-slate-800/90 hover:border-slate-700 transition-all flex flex-col justify-between shadow-lg">
+        <div>
+          <!-- Top Header: Icon + Model Name + Copy Button -->
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div class="flex items-center space-x-3 min-w-0">
+              ${getProviderBadgeHtml(m.provider_code, m.provider)}
+              <div class="min-w-0">
+                <h4 class="font-bold text-white text-sm font-mono truncate">${escapeHtml(m.id)}</h4>
+                <p class="text-[11px] text-slate-400 truncate">${escapeHtml(m.provider || m.owned_by || 'OpenAI')}</p>
               </div>
-              <h4 class="font-bold text-slate-200 text-sm group-hover:text-emerald-300 transition-colors font-mono mb-2">
-                ${m.id}
-              </h4>
-              <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">
-                ${m.description || 'Mô hình miễn phí tốc độ cao tương thích OpenAI.'}
-              </p>
             </div>
-            <button onclick="selectModelAndChat('${m.id}')" class="w-full py-2 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white text-xs font-medium transition-all flex items-center justify-center space-x-1.5">
-              <span>Chat ngay với Model này</span>
-              <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+            <button onclick="copyRawText('${m.id}', 'Đã sao chép tên Model: ${m.id}')" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all shrink-0" title="Copy Model ID">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
             </button>
           </div>
-        `).join('');
-        if (window.lucide) lucide.createIcons();
+
+          <!-- Description -->
+          <p class="text-xs text-slate-300 line-clamp-2 leading-relaxed mb-2.5 min-h-[2.25rem]">
+            ${escapeHtml(m.description || '')}
+          </p>
+
+          <!-- Tags -->
+          <div class="text-[11px] text-slate-400 mb-3 pb-3 border-b border-slate-800/80 truncate">
+            Thẻ: <span class="text-slate-300 font-medium">${escapeHtml(tagsStr)}</span>
+          </div>
+
+          <!-- Pricing & Endpoints -->
+          <div class="mb-3 pb-3 border-b border-slate-800/80">
+            ${priceTypeBadge}
+            ${priceDisplay}
+            <div class="flex items-center justify-between text-[11px] text-slate-400 mt-2.5 pt-2 border-t border-slate-800/50">
+              <span>Nhóm <strong class="text-slate-200">default</strong></span>
+              <span class="truncate max-w-[190px]" title="${escapeHtml(endpointsStr)}">Điểm cuối <strong class="text-slate-200">${escapeHtml(endpointsStr)}</strong></span>
+            </div>
+          </div>
+
+          <!-- Model Status Bar (Uptime % + 24 Bars + Latency + TPS) -->
+          <div class="flex items-center justify-between gap-2 mb-4 bg-slate-950/70 border border-slate-800/80 rounded-lg p-2.5">
+            <div>
+              <div class="text-[10px] text-slate-400 mb-1">
+                Trạng thái <span id="status-uptime-${m.id}" class="${uptimeColor} font-mono font-bold">${uptimeVal.toFixed(2)}%</span>
+              </div>
+              <div id="status-bars-${m.id}" class="flex items-center space-x-[2px]">
+                ${renderStatusBarsHtml(status.bars)}
+              </div>
+            </div>
+
+            <div class="text-left">
+              <div class="text-[10px] text-slate-400">Trễ</div>
+              <div id="status-latency-${m.id}" class="text-xs font-mono font-semibold text-slate-200 mt-0.5">${status.latency || '12.0s'}</div>
+            </div>
+
+            <div class="text-left">
+              <div class="text-[10px] text-slate-400">TPS</div>
+              <div id="status-tps-${m.id}" class="text-xs font-mono font-semibold text-slate-200 mt-0.5">${status.tps || '45.0t/s'}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Action Buttons -->
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            id="btn-probe-${m.id}"
+            onclick="probeModelLive('${m.id}')"
+            class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700/80 flex items-center justify-center space-x-1.5 transition-all"
+          >
+            <i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span>Ping thử</span>
+          </button>
+          <button
+            onclick="selectModelAndChat('${m.id}')"
+            class="py-2 px-3 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-medium flex items-center justify-center space-x-1.5 transition-all"
+          >
+            <span>Chat ngay</span>
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+// ------------------------------------------
+// Live Model Status Probe (/api/model-status)
+// ------------------------------------------
+async function probeModelLive(modelId) {
+  if (!clientAccessToken) return;
+
+  const btn = document.getElementById(`btn-probe-${modelId}`);
+  const latencyEl = document.getElementById(`status-latency-${modelId}`);
+  const tpsEl = document.getElementById(`status-tps-${modelId}`);
+  const uptimeEl = document.getElementById(`status-uptime-${modelId}`);
+  const barsEl = document.getElementById(`status-bars-${modelId}`);
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="text-amber-300 font-mono">Đang ping...</span>`;
+  }
+
+  try {
+    const res = await fetch(`/api/model-status?model=${encodeURIComponent(modelId)}`, {
+      headers: { Authorization: `Bearer ${clientAccessToken}` }
+    });
+    const data = await res.json();
+    if (res.ok && data.probe) {
+      const p = data.probe;
+      if (latencyEl) {
+        latencyEl.textContent = p.latency;
+        latencyEl.className = p.online ? 'text-xs font-mono font-bold text-emerald-400 mt-0.5' : 'text-xs font-mono font-bold text-rose-400 mt-0.5';
+      }
+      if (tpsEl) {
+        tpsEl.textContent = p.tps;
+      }
+
+      const targetModel = availableModels.find(m => m.id === modelId);
+      if (targetModel && targetModel.status) {
+        const nextBar = p.state === 'online' ? 1 : (p.state === 'degraded' ? 2 : 0);
+        targetModel.status.bars = [...(targetModel.status.bars || []).slice(1), nextBar];
+        targetModel.status.latency = p.latency;
+        targetModel.status.tps = p.tps;
+        if (barsEl) barsEl.innerHTML = renderStatusBarsHtml(targetModel.status.bars);
+      }
+
+      if (btn) {
+        btn.innerHTML = p.online
+          ? `<span class="text-emerald-400 font-semibold">✓ ${p.latency}</span>`
+          : `<span class="text-rose-400 font-semibold">✕ ${p.message}</span>`;
       }
     }
   } catch (err) {
-    console.error('Error fetching models:', err);
+    if (btn) btn.innerHTML = `<span class="text-rose-400">Lỗi kết nối</span>`;
+  } finally {
+    setTimeout(() => {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-400"></i><span>Ping thử</span>`;
+        if (window.lucide) lucide.createIcons();
+      }
+    }, 3500);
+  }
+}
+
+async function probeAllModelsLive() {
+  const btnAll = document.getElementById('btn-probe-all');
+  if (btnAll) {
+    btnAll.disabled = true;
+    btnAll.innerHTML = `<span>Đang kiểm tra 15 Models...</span>`;
+  }
+
+  // Probe top fast models first so user sees immediate feedback
+  const modelsToProbe = availableModels.map(m => m.id);
+  await Promise.allSettled(modelsToProbe.map(id => probeModelLive(id)));
+
+  if (btnAll) {
+    btnAll.disabled = false;
+    btnAll.innerHTML = `<i data-lucide="radar" class="w-3.5 h-3.5"></i><span>Ping Kiểm Tra Thực Tế</span>`;
+    if (window.lucide) lucide.createIcons();
   }
 }
 
@@ -589,25 +871,16 @@ function autoResizeTextarea(textarea) {
   document.getElementById('token-counter').textContent = `${textarea.value.length} ký tự`;
 }
 
-function sendQuickPrompt(promptText) {
-  const input = document.getElementById('chat-input');
-  if (input) {
-    input.value = promptText;
-    autoResizeTextarea(input);
-    handleChatSubmit(new Event('submit'));
-  }
-}
-
 function clearChat() {
   chatHistory = [];
   const container = document.getElementById('chat-messages');
   container.innerHTML = `
     <div id="welcome-message" class="text-center py-10 max-w-xl mx-auto">
-      <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-indigo-500/20 to-cyan-500/20 border border-indigo-500/30 flex items-center justify-center">
-        <i data-lucide="sparkles" class="w-8 h-8 text-indigo-400"></i>
+      <div class="w-14 h-14 mx-auto mb-4 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center">
+        <i data-lucide="sparkles" class="w-7 h-7 text-indigo-400"></i>
       </div>
       <h2 class="text-xl font-bold text-slate-100 mb-2">Cuộc trò chuyện mới</h2>
-      <p class="text-slate-400 text-sm">Hãy nhập câu hỏi bên dưới để bắt đầu giao tiếp với mô hình AI miễn phí.</p>
+      <p class="text-slate-400 text-sm">Hãy nhập câu hỏi bên dưới để bắt đầu giao tiếp với bất kỳ mô hình nào trong 15 mô hình AI.</p>
     </div>
   `;
   if (window.lucide) lucide.createIcons();
@@ -752,8 +1025,8 @@ async function handleChatSubmit(e) {
       if (messageContentEl) {
         messageContentEl.classList.remove('streaming-cursor');
         messageContentEl.innerHTML = `
-          <div class="p-3 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs">
-            <strong>Lỗi phản hồi:</strong> ${err.message}
+          <div class="p-3 rounded-lg bg-red-950/40 border border-red-800/60 text-red-300 text-xs">
+            <strong>Lỗi phản hồi:</strong> ${escapeHtml(err.message)}
           </div>
         `;
       }
@@ -789,11 +1062,11 @@ function appendAssistantPlaceholder(id, modelName) {
     <div class="max-w-[90%] sm:max-w-[85%] assistant-bubble p-4 sm:p-5 text-sm">
       <div class="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-3">
         <div class="flex items-center space-x-2">
-          <div class="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">
+          <div class="w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs">
             <i data-lucide="bot" class="w-3.5 h-3.5"></i>
           </div>
-          <span class="text-xs font-mono font-semibold text-emerald-300">${modelName}</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">FREE</span>
+          <span class="text-xs font-mono font-semibold text-indigo-300">${escapeHtml(modelName)}</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">SLK /v1</span>
         </div>
         <button onclick="copyAssistantMessage('${id}-content')" class="text-[11px] text-slate-500 hover:text-slate-300 flex items-center space-x-1">
           <i data-lucide="copy" class="w-3 h-3"></i>
@@ -836,7 +1109,7 @@ function enhanceCodeBlocks(container) {
 }
 
 function escapeHtml(str) {
-  return str.replace(/[&<>'"]/g, tag => ({
+  return String(str || '').replace(/[&<>'"]/g, tag => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
@@ -883,9 +1156,9 @@ function handleTesterEndpointChange() {
   if (endpoint === '/v1/chat/completions') {
     bodyWrapper.classList.remove('hidden');
     payloadEl.value = JSON.stringify({
-      model: "DeepSeek-V4-Flash",
+      model: "MiniMax-M3.1-Flash",
       messages: [
-        { role: "user", content: "Kiểm tra kết nối API Gateway thành công hay chưa?" }
+        { role: "user", content: "Kiểm tra kết nối SLK Gateway thành công hay chưa?" }
       ],
       temperature: 0.7,
       stream: false

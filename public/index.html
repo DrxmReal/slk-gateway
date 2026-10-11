@@ -569,12 +569,13 @@ for await (const chunk of stream) {
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <!-- Provider Filters -->
           <div class="flex flex-wrap items-center gap-1.5" id="provider-filter-bar">
-            <button onclick="setModelProviderFilter('all')" data-provider="all" class="provider-chip active px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition-all">Tất cả (9)</button>
+            <button onclick="setModelProviderFilter('all')" data-provider="all" class="provider-chip active px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition-all">Tất cả (10)</button>
             <button onclick="setModelProviderFilter('nvidia')" data-provider="nvidia" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">NVIDIA (1)</button>
             <button onclick="setModelProviderFilter('stepfun')" data-provider="stepfun" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">StepFun (1)</button>
             <button onclick="setModelProviderFilter('k2')" data-provider="k2" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">K2 AI (1)</button>
             <button onclick="setModelProviderFilter('agnes')" data-provider="agnes" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Agnes AI (1)</button>
             <button onclick="setModelProviderFilter('space')" data-provider="space" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Space AI (1)</button>
+            <button onclick="setModelProviderFilter('qwen')" data-provider="qwen" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Qwen (1)</button>
             <button onclick="setModelProviderFilter('zhipu')" data-provider="zhipu" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">Zhipu GLM (1)</button>
             <button onclick="setModelProviderFilter('longcat')" data-provider="longcat" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">LongCat (1)</button>
             <button onclick="setModelProviderFilter('sensenova')" data-provider="sensenova" class="provider-chip px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all">SenseNova (1)</button>
@@ -620,6 +621,7 @@ for await (const chunk of stream) {
               <option value="glm-5.3">🧠 glm-5.3 (97.46% • 1.000 ₫/lượt)</option>
               <option value="longcat-2.5">🐱 longcat-2.5 (99.78% • 500 ₫/lượt)</option>
               <option value="sensenova-6.8-flash-lite">⚡ sensenova-6.8-flash-lite (99.92% • 500 ₫/lượt)</option>
+              <option value="qwen-3.5">🌟 qwen-3.5 - Apodex 1.1 Mini (99.95% • 500 ₫/lượt)</option>
             </select>
             <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none"></i>
           </div>
@@ -629,9 +631,9 @@ for await (const chunk of stream) {
             <button onclick="selectModel('auto')" class="text-[11px] px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 transition-all">⚡ auto (1.000 ₫)</button>
             <button onclick="selectModel('nemotron-3-super-120b-a12b')" class="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">🧠 Nemotron 120B (1.000 ₫)</button>
             <button onclick="selectModel('step-5-preview')" class="text-[11px] px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 transition-all">🚀 Step 5 (1.000 ₫)</button>
+            <button onclick="selectModel('qwen-3.5')" class="text-[11px] px-2.5 py-1 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 transition-all">🌟 Qwen 3.5 (500 ₫)</button>
             <button onclick="selectModel('k2-horizon')" class="text-[11px] px-2.5 py-1 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 border border-violet-500/30 transition-all">⚡ K2 Horizon (500 ₫)</button>
             <button onclick="selectModel('space-bunny')" class="text-[11px] px-2.5 py-1 rounded-lg bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30 transition-all">🐰 Space Bunny (500 ₫)</button>
-            <button onclick="selectModel('glm-5.3')" class="text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all">💳 GLM-5.3 (1.000 ₫)</button>
           </div>
         </div>
 
@@ -1201,6 +1203,7 @@ for await (const chunk of stream) {
                 <option value="glm-5.3">glm-5.3</option>
                 <option value="longcat-2.5">longcat-2.5</option>
                 <option value="sensenova-6.8-flash-lite">sensenova-6.8-flash-lite</option>
+                <option value="qwen-3.5">qwen-3.5</option>
               </select>
               <input type="text" id="setting-custom-model-input" placeholder="Hoặc gõ ID..." class="bg-slate-950 border border-slate-800 text-xs text-slate-200 rounded-lg px-2.5 py-2 w-32 font-mono focus:outline-none focus:border-indigo-500">
               <button type="button" onclick="handleAddModelToCurrentGate()" class="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shrink-0 transition-all">

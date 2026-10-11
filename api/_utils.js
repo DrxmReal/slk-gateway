@@ -30,13 +30,15 @@ export const UNOROUTER_MODELS = [
   'agnes-3.0-flash:free',
 ];
 
-// Mapping alias hiển thị sạch -> tên model nội bộ trên Upstream (UnoRouter / OpenCode)
+// Mapping alias hiển thị sạch -> tên model nội bộ trên Upstream (UnoRouter / OpenCode / OpenRouter)
 export const MODEL_ALIASES = {
   'nemotron-3-super-120b-a12b': 'nemotron-3-super-120b-a12b:free',
   'step-5-preview': 'step-5-preview:free',
   'k2-horizon': 'k2-horizon:free',
   'agnes-3.0-flash': 'agnes-3.0-flash:free',
   'space-bunny': 'space-bunny-free',
+  'qwen-3.5': 'apodex/apodex-1.1-mini:free',
+  'apodex/apodex-1.1-mini:free': 'apodex/apodex-1.1-mini:free',
 };
 
 // Danh sách model ĐƯỢC PHÉP sử dụng trên Gateway (auto đứng đầu, tên model sạch không :free)
@@ -47,15 +49,17 @@ export const FREE_MODELS = [
   'k2-horizon',
   'agnes-3.0-flash',
   'space-bunny',
+  'qwen-3.5',
   'glm-5.3',
   'longcat-2.5',
   'sensenova-6.8-flash-lite',
-  // Tương thích ngược nếu client gọi có kèm :free / -free
+  // Tương thích ngược nếu client gọi có kèm :free / -free / tên gốc
   'nemotron-3-super-120b-a12b:free',
   'step-5-preview:free',
   'k2-horizon:free',
   'agnes-3.0-flash:free',
   'space-bunny-free',
+  'apodex/apodex-1.1-mini:free',
 ];
 
 export const ALL_MODELS = FREE_MODELS;
@@ -198,6 +202,29 @@ export const MODELS_CATALOG = [
       uptime: 99.85,
       latency: '2.35s',
       tps: '88.2t/s',
+      state: 'online',
+      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    }
+  },
+  {
+    id: 'qwen-3.5',
+    object: 'model',
+    created: 1791693000,
+    owned_by: 'Qwen AI',
+    provider: 'OpenRouter / Qwen',
+    provider_code: 'qwen',
+    free: false,
+    price_type: 'request',
+    price_label: '500 ₫ / yêu cầu',
+    price_input: '500 ₫ / yêu cầu',
+    price_output: '',
+    tags: ['Reasoning', 'Tools', 'Qwen', 'Fast'],
+    description: 'Qwen 3.5 (Apodex 1.1 Mini): mô hình suy luận tốc độ cao, hỗ trợ reasoning đa bước, tối ưu lập trình và logic phức tạp qua OpenRouter.',
+    supported_endpoint_types: ['openai'],
+    status: {
+      uptime: 99.95,
+      latency: '1.20s',
+      tps: '115.0t/s',
       state: 'online',
       bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
     }
@@ -1097,6 +1124,12 @@ export async function proxyRequest(request, targetPath) {
     forwardHeaders.set('Authorization', `Bearer ${gate.apiKey}`);
     forwardHeaders.set('Content-Type', request.headers.get('content-type') || 'application/json');
     forwardHeaders.set('Accept', request.headers.get('accept') || 'application/json');
+
+    // Thêm headers định danh nếu gọi qua OpenRouter
+    if (gate.baseUrl && gate.baseUrl.toLowerCase().includes('openrouter')) {
+      forwardHeaders.set('HTTP-Referer', 'https://slk-gateway.vercel.app');
+      forwardHeaders.set('X-Title', 'SLK Gateway');
+    }
 
     try {
       gate.requests += 1;

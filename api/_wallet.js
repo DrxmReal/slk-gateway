@@ -29,6 +29,8 @@ export const MODEL_REQUEST_FEE_VND = {
   'space-bunny': 500,
   'longcat-2.5': 500,
   'sensenova-6.8-flash-lite': 500,
+  'qwen-3.5': 500,
+  'apodex/apodex-1.1-mini:free': 500,
   // Backward compatibility
   'nemotron-3-super-120b-a12b:free': 1000,
   'step-5-preview:free': 1000,

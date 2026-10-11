@@ -636,14 +636,16 @@ async function sha256Hex(input) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Lấy secret dùng để ký API Key (ưu tiên env riêng để không bị lộ)
+// Lấy secret dùng để ký API Key (giữ tương thích 100% với các key đã cấp trước đó)
 function getGatewaySigningSecret() {
+  if (process.env.GATEWAY_SIGNING_SECRET) {
+    return process.env.GATEWAY_SIGNING_SECRET.slice(0, 32);
+  }
   return (
-    process.env.GATEWAY_SIGNING_SECRET ||
-    process.env.DISCORD_CLIENT_SECRET ||
     process.env.UPSTREAM_API_KEY ||
-    'slk_gw_sec_2026_x89a1c'
-  ).slice(0, 32);
+    process.env.DISCORD_CLIENT_SECRET ||
+    'slk-gateway-secret-salt-2026'
+  ).slice(0, 16);
 }
 
 // Tạo API Key mặc định dựa trên Discord User ID (sk-dc-<uid>-<sig>)
@@ -669,7 +671,22 @@ export async function verifyDiscordUserApiKey(token) {
     if (parts.length < 4) return false;
     const discordUserId = parts[2];
     const expectedKey = await generateDiscordUserApiKey(discordUserId);
-    return token === expectedKey;
+    if (token === expectedKey) return true;
+
+    // Tương thích ngược với các phiên bản token cũ đã lưu trong localStorage của người dùng
+    const legacySecrets = [
+      (process.env.UPSTREAM_API_KEY || process.env.DISCORD_CLIENT_SECRET || 'slk-gateway-secret-salt-2026').slice(0, 16),
+      (process.env.DISCORD_CLIENT_SECRET || process.env.UPSTREAM_API_KEY || 'slk-gateway-secret-salt-2026').slice(0, 16),
+      'slk-gateway-secret-salt-2026'.slice(0, 16),
+      (process.env.DISCORD_CLIENT_SECRET || process.env.UPSTREAM_API_KEY || 'slk_gw_sec_2026_x89a1c').slice(0, 32),
+      'slk_gw_sec_2026_x89a1c'.slice(0, 32),
+    ];
+    for (const sec of legacySecrets) {
+      const hash = await sha256Hex(`${discordUserId}:${sec}`);
+      if (token === `sk-dc-${discordUserId}-${hash.slice(0, 24)}`) return true;
+    }
+
+    return false;
   }
 
   if (token.startsWith('sk-nx-')) {
@@ -678,7 +695,21 @@ export async function verifyDiscordUserApiKey(token) {
     const discordUserId = parts[2];
     const salt = parts[3];
     const expectedKey = await generateCustomDiscordApiKey(discordUserId, salt);
-    return token === expectedKey;
+    if (token === expectedKey) return true;
+
+    const legacySecrets = [
+      (process.env.UPSTREAM_API_KEY || process.env.DISCORD_CLIENT_SECRET || 'slk-gateway-secret-salt-2026').slice(0, 16),
+      (process.env.DISCORD_CLIENT_SECRET || process.env.UPSTREAM_API_KEY || 'slk-gateway-secret-salt-2026').slice(0, 16),
+      'slk-gateway-secret-salt-2026'.slice(0, 16),
+      (process.env.DISCORD_CLIENT_SECRET || process.env.UPSTREAM_API_KEY || 'slk_gw_sec_2026_x89a1c').slice(0, 32),
+      'slk_gw_sec_2026_x89a1c'.slice(0, 32),
+    ];
+    for (const sec of legacySecrets) {
+      const hash = await sha256Hex(`${discordUserId}:${salt}:${sec}`);
+      if (token === `sk-nx-${discordUserId}-${salt}-${hash.slice(0, 20)}`) return true;
+    }
+
+    return false;
   }
 
   return false;

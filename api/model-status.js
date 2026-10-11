@@ -64,16 +64,17 @@ export async function probeSingleModel(modelId, upstreamBase, upstreamKey) {
       };
     }
 
+    const isRateLimit = res.status === 429;
     return {
       id: modelId,
       online: false,
       httpStatus: res.status,
       latencyMs: ms,
-      latency: latencySec,
+      latency: isRateLimit ? '429 (Chờ 1m)' : latencySec,
       tps: '0.0t/s',
-      state: 'offline',
-      message: res.status === 429
-        ? 'Quá tải (429)'
+      state: isRateLimit ? 'rate_limited' : 'offline',
+      message: isRateLimit
+        ? 'Bị giới hạn (Chờ 1 phút)'
         : (res.status === 401 ? 'Lỗi xác thực (401)' : `Quá thời gian chờ (${res.status})`),
     };
   } catch (err) {

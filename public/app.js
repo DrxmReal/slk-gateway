@@ -1108,17 +1108,36 @@ async function probeModelLive(modelId) {
     const data = await res.json();
     if (res.ok && data.probe) {
       const p = data.probe;
+      const isRateLimited = p.httpStatus === 429 || p.state === 'rate_limited';
+
       if (latencyEl) {
         latencyEl.textContent = p.latency;
-        latencyEl.className = p.online ? 'text-xs font-mono font-bold text-emerald-400 mt-0.5' : 'text-xs font-mono font-bold text-rose-400 mt-0.5';
+        latencyEl.className = p.online
+          ? 'text-xs font-mono font-bold text-emerald-400 mt-0.5'
+          : 'text-xs font-mono font-bold text-rose-400 mt-0.5';
       }
       if (tpsEl) {
         tpsEl.textContent = p.tps;
+        tpsEl.className = p.online ? 'text-xs font-mono font-semibold text-slate-200 mt-0.5' : 'text-xs font-mono font-semibold text-rose-400 mt-0.5';
+      }
+
+      const uptimeEl = document.getElementById(`status-uptime-${modelId}`);
+      if (uptimeEl) {
+        if (isRateLimited) {
+          uptimeEl.textContent = 'Quá tải (Chờ 1 phút)';
+          uptimeEl.className = 'text-rose-400 font-mono font-bold text-[11px]';
+        } else if (!p.online) {
+          uptimeEl.textContent = 'Offline';
+          uptimeEl.className = 'text-rose-400 font-mono font-bold';
+        } else {
+          uptimeEl.textContent = 'Online';
+          uptimeEl.className = 'text-emerald-400 font-mono font-bold';
+        }
       }
 
       const targetModel = availableModels.find(m => m.id === modelId);
       if (targetModel && targetModel.status) {
-        const nextBar = p.state === 'online' ? 1 : (p.state === 'degraded' ? 2 : 0);
+        const nextBar = p.online ? (p.state === 'degraded' ? 2 : 1) : 0; // 0 = vạch đỏ
         targetModel.status.bars = [...(targetModel.status.bars || []).slice(1), nextBar];
         targetModel.status.latency = p.latency;
         targetModel.status.tps = p.tps;
@@ -1128,7 +1147,9 @@ async function probeModelLive(modelId) {
       if (btn) {
         btn.innerHTML = p.online
           ? `<span class="text-emerald-400 font-semibold">✓ ${p.latency}</span>`
-          : `<span class="text-rose-400 font-semibold">✕ ${p.message}</span>`;
+          : (isRateLimited
+              ? `<span class="text-rose-400 font-bold text-[11px]">⚠️ Chờ ~1 phút (429)</span>`
+              : `<span class="text-rose-400 font-semibold text-[11px]">✕ ${p.message}</span>`);
       }
     }
   } catch (err) {
@@ -1343,17 +1364,41 @@ async function handleChatSubmit(e) {
         messageContentEl.classList.remove('streaming-cursor');
         messageContentEl.innerHTML += '<p class="text-xs text-amber-400 italic mt-2">[Đã dừng phản hồi]</p>';
       }
-    } else {
       if (messageContentEl) {
         messageContentEl.classList.remove('streaming-cursor');
+        const isRateLimit = lastResponseStatus === 429;
         messageContentEl.innerHTML = `
-          <div class="p-3 rounded-lg bg-red-950/40 border border-red-800/60 text-red-300 text-xs">
-            <strong>Lỗi phản hồi:</strong> ${escapeHtml(err.message)}
+          <div class="p-3.5 rounded-lg ${isRateLimit ? 'bg-rose-950/40 border border-rose-800/60 text-rose-300' : 'bg-red-950/40 border border-red-800/60 text-red-300'} text-xs">
+            <div class="flex items-center space-x-1.5 font-bold mb-1">
+              <i data-lucide="${isRateLimit ? 'clock' : 'alert-circle'}" class="w-4 h-4"></i>
+              <span>${isRateLimit ? 'Giới hạn tần suất 429 (Chờ ~1 phút):' : 'Lỗi phản hồi:'}</span>
+            </div>
+            <p>${escapeHtml(err.message)}</p>
+            ${isRateLimit ? '<p class="mt-2 text-[11px] text-rose-400 font-mono">⏳ Gói Free giới hạn 1 yêu cầu / 1 phút trên model này. Vui lòng đợi ~1 phút rồi gửi lại, hoặc chuyển sang model khác.</p>' : ''}
           </div>
         `;
+        if (window.lucide) lucide.createIcons();
+      }
+      if (lastResponseStatus === 429) {
+        // Cập nhật card của model trên tab Model Status sang vạch đỏ báo quá tải
+        const uptimeEl = document.getElementById(`status-uptime-${selectedModel}`);
+        if (uptimeEl) {
+          uptimeEl.textContent = 'Quá tải (Chờ 1 phút)';
+          uptimeEl.className = 'text-rose-400 font-mono font-bold text-[11px]';
+        }
+        const latencyEl = document.getElementById(`status-latency-${selectedModel}`);
+        if (latencyEl) {
+          latencyEl.textContent = '429 (Chờ 1m)';
+          latencyEl.className = 'text-xs font-mono font-bold text-rose-400 mt-0.5';
+        }
+        const barsEl = document.getElementById(`status-bars-${selectedModel}`);
+        const targetModel = availableModels.find(m => m.id === selectedModel);
+        if (targetModel && targetModel.status) {
+          targetModel.status.bars = [...(targetModel.status.bars || []).slice(1), 0]; // bar đỏ
+          if (barsEl) barsEl.innerHTML = renderStatusBarsHtml(targetModel.status.bars);
+        }
       }
       if (lastResponseStatus === 402) loadWallet(); // Hết tiền -> cập nhật số dư ví
-    }
   } finally {
     toggleGenerationButtons(false);
     activeAbortController = null;
@@ -1535,11 +1580,15 @@ async function executeApiTest() {
     const duration = Math.round(performance.now() - startTime);
     timeBadge.textContent = `${duration} ms`;
 
-    statusBadge.textContent = `${res.status} ${res.statusText}`;
-    if (res.ok) {
+    if (res.status === 429) {
+      statusBadge.textContent = '429 Rate Limit (Chờ 1 phút)';
+      statusBadge.className = 'px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono font-bold';
+    } else if (res.ok) {
+      statusBadge.textContent = `${res.status} ${res.statusText || 'OK'}`;
       statusBadge.className = 'px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono';
     } else {
-      statusBadge.className = 'px-2 py-0.5 rounded bg-red-500/20 text-red-300 font-mono';
+      statusBadge.textContent = `${res.status} ${res.statusText || 'Error'}`;
+      statusBadge.className = 'px-2 py-0.5 rounded bg-red-500/20 text-red-300 font-mono font-bold';
     }
 
     const contentType = res.headers.get('content-type') || '';

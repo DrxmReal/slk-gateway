@@ -761,7 +761,7 @@ export function maskAndSanitizeErrorResponse(errOrStatus, rawBodyOrMsg = '', cus
   let code = 'timeout';
 
   if (status === 429) {
-    message = 'Mô hình AI hiện đang nhận quá nhiều yêu cầu đồng thời (Too Many Requests). Vui lòng đợi vài giây và thử lại.';
+    message = 'Mô hình AI đang bị giới hạn tần suất (Gói Free giới hạn 1 yêu cầu / 1 phút). Vui lòng đợi ~1 phút và gửi lại.';
     type = 'rate_limit_error';
     code = 'rate_limit';
   }

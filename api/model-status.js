@@ -30,12 +30,18 @@ export async function probeSingleModel(modelId, upstreamBase, upstreamKey) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 18000);
 
+    const headers = {
+      'Authorization': `Bearer ${upstreamKey}`,
+      'Content-Type': 'application/json',
+    };
+    if (upstreamBase && upstreamBase.toLowerCase().includes('openrouter')) {
+      headers['HTTP-Referer'] = 'https://slk-gateway.vercel.app';
+      headers['X-Title'] = 'SLK Gateway';
+    }
+
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${upstreamKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
@@ -117,21 +123,13 @@ export default async function handler(request) {
 
   if (targetModel) {
     const upstreamModel = MODEL_ALIASES[targetModel] || targetModel;
-    const isSpaceBunny = upstreamModel === 'space-bunny-free';
-    const isUnoRouter = UNOROUTER_MODELS.includes(upstreamModel);
+    const modelGates = selectGatesForRequest(targetModel);
+    const candidateGate = modelGates[0] || {
+      baseUrl: (process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, ''),
+      apiKey: (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).trim(),
+    };
 
-    let probeBase = activeGate.baseUrl;
-    let probeKey = activeGate.apiKey;
-
-    if (isSpaceBunny) {
-      probeBase = OPENCODE_BASE_URL;
-      probeKey = OPENCODE_API_KEY;
-    } else if (isUnoRouter) {
-      probeBase = UNOROUTER_BASE_URL;
-      probeKey = UNOROUTER_API_KEY;
-    }
-
-    const probe = await probeSingleModel(upstreamModel, probeBase, probeKey);
+    const probe = await probeSingleModel(upstreamModel, candidateGate.baseUrl, candidateGate.apiKey);
     probe.id = targetModel;
     return new Response(
       JSON.stringify({ success: true, probe, timestamp: new Date().toISOString() }),

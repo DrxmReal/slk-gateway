@@ -8,8 +8,13 @@ export const OPENCODE_BASE_URL = (process.env.OPENCODE_BASE_URL || 'https://open
 export const OPENCODE_API_KEY = (process.env.OPENCODE_API_KEY || '').trim();
 
 // Cấu hình UnoRouter Gate (Step 5 Preview & Free Tier)
+export const DEFAULT_UNOROUTER_KEYS = [
+  'sk-CjeXySzJR6H61RnHxW4bSx8tWH2q3DgsML26SNyXd3HrMkiD',
+  'sk-FLu4Pg5ZxBiGYyPiEj16cD2bNgX0K0fkwZSAuANj9ILpDDTT',
+];
 export const UNOROUTER_BASE_URL = (process.env.UNOROUTER_BASE_URL || 'https://api.unorouter.com/v1').replace(/\/+$/, '');
-export const UNOROUTER_API_KEY = (process.env.UNOROUTER_API_KEY || '').trim();
+export const UNOROUTER_API_KEY = (process.env.UNOROUTER_API_KEY || DEFAULT_UNOROUTER_KEYS[0]).trim();
+export const UNOROUTER_API_KEYS = (process.env.UNOROUTER_API_KEYS || DEFAULT_UNOROUTER_KEYS.join(',')).trim();
 
 export const DEFAULT_DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1558375997416677426';
 export const DEFAULT_DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
@@ -393,6 +398,48 @@ export function initKeyPoolIfNeeded(initialItems = null) {
     });
   });
 
+  // Tự động nạp thêm các Gate UnoRouter mặc định vào Pool nếu có
+  const defaultUnoKeys = Array.from(
+    new Set(
+      [
+        process.env.UNOROUTER_API_KEYS || '',
+        process.env.UNOROUTER_API_KEY || '',
+        ...DEFAULT_UNOROUTER_KEYS,
+      ]
+        .join(',')
+        .split(/[\n,;]+/)
+        .map(k => k.trim())
+        .filter(Boolean)
+    )
+  );
+
+  defaultUnoKeys.forEach((k, idx) => {
+    upstreamKeyPool.push({
+      id: `gate_unorouter_${idx + 1}`,
+      name: `UnoRouter Gate #${idx + 1}`,
+      models: [
+        'step-5-preview',
+        'step-5-preview:free',
+        'k2-horizon',
+        'k2-horizon:free',
+        'nemotron-3-super-120b-a12b',
+        'nemotron-3-super-120b-a12b:free',
+        'agnes-3.0-flash',
+        'agnes-3.0-flash:free',
+      ],
+      baseUrl: UNOROUTER_BASE_URL,
+      apiKey: k,
+      maskedKey: maskApiKey(k),
+      enabled: true,
+      status: 'online',
+      requests: 0,
+      errors: 0,
+      lastLatencyMs: null,
+      lastUsedAt: null,
+      addedAt: new Date().toISOString(),
+    });
+  });
+
   keyPoolInitialized = true;
   return upstreamKeyPool;
 }
@@ -543,12 +590,38 @@ export function selectGatesForRequest(requestModel = '') {
       roundRobinCounter = (roundRobinCounter + 1) % 1000000;
       return unoGates.map((_, i) => unoGates[(startIdx + i) % unoGates.length]);
     }
-    const envUnoKey = (process.env.UNOROUTER_API_KEY || UNOROUTER_API_KEY || '').trim();
+    const rawUnoKeys = [
+      process.env.UNOROUTER_API_KEYS || '',
+      process.env.UNOROUTER_API_KEY || '',
+      ...DEFAULT_UNOROUTER_KEYS,
+    ].join(',');
+    const uniqueUnoKeys = Array.from(
+      new Set(
+        rawUnoKeys
+          .split(/[\n,;]+/)
+          .map(k => k.trim())
+          .filter(Boolean)
+      )
+    );
+    const fallbackUnoGates = uniqueUnoKeys.map((k, idx) => ({
+      id: `gate_unorouter_fallback_${idx + 1}`,
+      name: `UnoRouter Gate #${idx + 1}`,
+      baseUrl: UNOROUTER_BASE_URL,
+      apiKey: k,
+      enabled: true,
+      requests: 0,
+      errors: 0,
+    }));
+    if (fallbackUnoGates.length > 0) {
+      const startIdx = roundRobinCounter % fallbackUnoGates.length;
+      roundRobinCounter = (roundRobinCounter + 1) % 1000000;
+      return fallbackUnoGates.map((_, i) => fallbackUnoGates[(startIdx + i) % fallbackUnoGates.length]);
+    }
     return [{
       id: 'gate_unorouter_fallback',
       name: 'UnoRouter Gate',
       baseUrl: UNOROUTER_BASE_URL,
-      apiKey: envUnoKey,
+      apiKey: UNOROUTER_API_KEY,
       enabled: true,
       requests: 0,
       errors: 0,

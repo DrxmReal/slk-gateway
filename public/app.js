@@ -962,7 +962,7 @@ function getProviderBadgeHtml(providerCode, providerName) {
     longcat: { bg: 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30', letter: 'LC' },
     sensenova: { bg: 'bg-cyan-600/20 text-cyan-400 border-cyan-500/30', letter: 'SN' },
     qwen: { bg: 'bg-teal-600/20 text-teal-400 border-teal-500/30', letter: 'QW' },
-    openrouter: { bg: 'bg-purple-600/20 text-purple-400 border-purple-500/30', letter: 'OR' },
+    slk: { bg: 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30', letter: 'SLK' },
     inclusionai: { bg: 'bg-rose-600/20 text-rose-400 border-rose-500/30', letter: 'INC' },
     thinkingmachines: { bg: 'bg-amber-600/20 text-amber-400 border-amber-500/30', letter: 'TM' },
     apodex: { bg: 'bg-sky-600/20 text-sky-400 border-sky-500/30', letter: 'AP' },

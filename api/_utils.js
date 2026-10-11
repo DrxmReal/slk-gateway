@@ -212,7 +212,7 @@ export const MODELS_CATALOG = [
     object: 'model',
     created: 1791693000,
     owned_by: 'Qwen AI',
-    provider: 'OpenRouter / Qwen',
+    provider: 'Qwen AI',
     provider_code: 'qwen',
     free: false,
     price_type: 'request',
@@ -220,7 +220,7 @@ export const MODELS_CATALOG = [
     price_input: '500 ₫ / yêu cầu',
     price_output: '',
     tags: ['Reasoning', 'Tools', 'Qwen', 'Fast'],
-    description: 'Qwen 3.5 (Apodex 1.1 Mini): mô hình suy luận tốc độ cao, hỗ trợ reasoning đa bước, tối ưu lập trình và logic phức tạp qua OpenRouter.',
+    description: 'Qwen 3.5: mô hình suy luận tốc độ cao, hỗ trợ reasoning đa bước, tối ưu lập trình và logic phức tạp qua SLK Gateway.',
     supported_endpoint_types: ['openai'],
     status: {
       uptime: 99.95,
@@ -351,9 +351,8 @@ export async function ensureKeyPoolSynced() {
 
 export function synthesizeCatalogEntry(modelId, gate = null) {
   const cleanId = String(modelId || '').trim();
-  let provider = gate?.name || 'Gate Model';
-  provider = provider.replace(/\s*Gate.*$/i, '').trim() || provider;
-  let providerCode = 'gate';
+  let provider = 'SLK AI';
+  let providerCode = 'slk';
 
   if (cleanId.includes('/')) {
     const parts = cleanId.split('/');
@@ -374,21 +373,25 @@ export function synthesizeCatalogEntry(modelId, gate = null) {
       microsoft: 'Microsoft',
       cohere: 'Cohere',
       apodex: 'Apodex AI',
+      allenai: 'Allen AI',
+      liquid: 'Liquid AI',
+      nousresearch: 'Nous Research',
+      gryphe: 'Gryphe AI',
     };
     if (prettyProviders[prefix]) {
       provider = prettyProviders[prefix];
     } else {
       provider = prefix.charAt(0).toUpperCase() + prefix.slice(1);
     }
-  } else if (gate?.name?.toLowerCase().includes('openrouter')) {
-    provider = 'OpenRouter';
-    providerCode = 'openrouter';
-  } else if (gate?.name?.toLowerCase().includes('unorouter')) {
-    provider = 'UnoRouter';
-    providerCode = 'unorouter';
-  } else if (gate?.name?.toLowerCase().includes('opencode')) {
-    provider = 'OpenCode Zen';
-    providerCode = 'opencode';
+  } else {
+    const lower = cleanId.toLowerCase();
+    if (lower.includes('qwen')) { provider = 'Qwen AI'; providerCode = 'qwen'; }
+    else if (lower.includes('nemotron') || lower.includes('nvidia')) { provider = 'NVIDIA'; providerCode = 'nvidia'; }
+    else if (lower.includes('deepseek')) { provider = 'DeepSeek'; providerCode = 'deepseek'; }
+    else if (lower.includes('glm')) { provider = 'Zhipu GLM'; providerCode = 'zhipu'; }
+    else if (lower.includes('claude')) { provider = 'Anthropic'; providerCode = 'anthropic'; }
+    else if (lower.includes('gpt')) { provider = 'OpenAI'; providerCode = 'openai'; }
+    else { provider = 'SLK AI'; providerCode = 'slk'; }
   }
 
   const tags = [];
@@ -397,10 +400,18 @@ export function synthesizeCatalogEntry(modelId, gate = null) {
   if (lower.includes('flash') || lower.includes('mini') || lower.includes('lightning') || lower.includes('small') || lower.includes('lite')) tags.push('Fast');
   if (lower.includes('thinking') || lower.includes('reason') || lower.includes('nemotron') || lower.includes('coder') || lower.includes('r1')) tags.push('Reasoning');
   tags.push('Tools');
-  tags.push('Gate');
 
   const isDiscount = (lower.includes('free') || lower.includes('mini') || lower.includes('flash') || lower.includes('lightning') || lower.includes('small') || lower.includes('lite'));
   const priceLabel = isDiscount ? '500 ₫ / yêu cầu' : '1.000 ₫ / yêu cầu';
+
+  let modelDesc = '';
+  if (tags.includes('Reasoning')) {
+    modelDesc = `${cleanId}: mô hình suy luận chuyên sâu, tối ưu giải quyết bài toán logic phức tạp và lập trình nâng cao qua SLK Gateway.`;
+  } else if (tags.includes('Fast')) {
+    modelDesc = `${cleanId}: mô hình phản hồi siêu tốc độ, tối ưu hóa thời gian xử lý và phân tích nhanh qua SLK Gateway.`;
+  } else {
+    modelDesc = `${cleanId}: mô hình trí tuệ nhân tạo thế hệ mới, hỗ trợ xử lý đa tác vụ với độ chính xác cao qua SLK Gateway.`;
+  }
 
   return {
     id: cleanId,
@@ -415,7 +426,7 @@ export function synthesizeCatalogEntry(modelId, gate = null) {
     price_input: priceLabel,
     price_output: '',
     tags: Array.from(new Set(tags)),
-    description: `${cleanId}: mô hình định tuyến qua "${gate?.name || 'Gate'}", hỗ trợ phản hồi nhanh, tối ưu chi phí và tính ổn định qua SLK Gateway.`,
+    description: modelDesc,
     supported_endpoint_types: ['openai'],
     status: {
       uptime: 99.80,

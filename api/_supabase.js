@@ -344,13 +344,19 @@ export async function dbLoadGatePoolFromSupabase() {
 
     return rows.map((r, idx) => {
       const parsed = parseGateNameAndModels(r.name || `Gate #${idx + 1}`);
+      const rawKeys = String(r.api_key || '').split(/[\n,;]+/).map(k => k.trim()).filter(Boolean);
+      const cleanKeys = Array.from(new Set(rawKeys));
+      const primaryKey = cleanKeys[0] || String(r.api_key || '').trim();
       return {
         id: r.id || `gate_${idx + 1}`,
         name: parsed.displayName,
         models: parsed.models,
         baseUrl: r.base_url || 'https://api.hcnsec.cn/v1',
-        apiKey: r.api_key,
-        maskedKey: r.masked_key || maskApiKey(r.api_key),
+        apiKey: primaryKey,
+        apiKeys: cleanKeys.length > 0 ? cleanKeys : [primaryKey],
+        maskedKey: cleanKeys.length > 1
+          ? `${cleanKeys.length} Keys (${maskApiKey(primaryKey)})`
+          : (r.masked_key || maskApiKey(primaryKey)),
         enabled: r.enabled !== false,
         isPrimary: idx === 0 || Boolean(r.is_primary),
         status: r.status || 'online',
@@ -371,21 +377,30 @@ export async function dbSyncGatePoolToSupabase(rawPoolList = []) {
   if (!cfg.configured || !Array.isArray(rawPoolList) || rawPoolList.length === 0) return false;
 
   try {
-    const payload = rawPoolList.map((g, idx) => ({
-      id: g.id,
-      name: encodeGateNameWithModels(g.name, g.models),
-      base_url: g.baseUrl,
-      api_key: g.apiKey,
-      masked_key: g.maskedKey || maskApiKey(g.apiKey),
-      enabled: g.enabled !== false,
-      is_primary: idx === 0,
-      status: g.status || 'online',
-      requests: Number(g.requests || 0),
-      errors: Number(g.errors || 0),
-      last_latency_ms: g.lastLatencyMs || null,
-      last_used_at: g.lastUsedAt || null,
-      added_at: g.addedAt || new Date().toISOString(),
-    }));
+    const payload = rawPoolList.map((g, idx) => {
+      const keys = Array.isArray(g.apiKeys) && g.apiKeys.length > 0 ? g.apiKeys : (g.apiKey ? [g.apiKey] : []);
+      const primaryKey = keys[0] || g.apiKey;
+      const joinedApiKey = keys.join(',');
+      const maskedKey = keys.length > 1
+        ? `${keys.length} Keys (${maskApiKey(primaryKey)})`
+        : maskApiKey(primaryKey);
+
+      return {
+        id: g.id,
+        name: encodeGateNameWithModels(g.name, g.models),
+        base_url: g.baseUrl,
+        api_key: joinedApiKey,
+        masked_key: maskedKey,
+        enabled: g.enabled !== false,
+        is_primary: idx === 0,
+        status: g.status || 'online',
+        requests: Number(g.requests || 0),
+        errors: Number(g.errors || 0),
+        last_latency_ms: g.lastLatencyMs || null,
+        last_used_at: g.lastUsedAt || null,
+        added_at: g.addedAt || new Date().toISOString(),
+      };
+    });
 
     await fetch(`${cfg.url}/rest/v1/slk_gate_pool`, {
       method: 'POST',

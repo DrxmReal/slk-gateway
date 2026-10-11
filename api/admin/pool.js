@@ -182,6 +182,7 @@ export default async function handler(request) {
           name: body.name,
           baseUrl: body.baseUrl,
           apiKey: body.apiKey,
+          apiKeys: body.apiKeys,
           models: body.models,
           enabled: body.enabled,
         });

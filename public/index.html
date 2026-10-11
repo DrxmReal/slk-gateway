@@ -1146,8 +1146,32 @@ for await (const chunk of stream) {
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-slate-400 mb-1">Cập nhật API Key (Tùy chọn):</label>
-          <input type="text" id="setting-gate-key" placeholder="Để trống nếu muốn giữ nguyên API Key hiện tại" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-emerald-300 font-mono placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Quản Lý Danh Sách API Keys Của Gate Này (Hỗ trợ nhiều key xoay vòng):</label>
+          <div class="space-y-2">
+            <!-- Chips hiển thị danh sách API Keys hiện tại -->
+            <div id="setting-gate-keys-chips" class="flex flex-wrap gap-1.5 p-2.5 rounded-lg bg-slate-950 border border-slate-800 min-h-[46px] items-center">
+            </div>
+
+            <!-- Input thêm API Key mới -->
+            <div class="flex items-center gap-2">
+              <input
+                type="text"
+                id="setting-new-key-input"
+                placeholder="Dán thêm API Key mới (sk-...)..."
+                class="bg-slate-950 border border-slate-800 text-xs text-emerald-300 rounded-lg px-3 py-2 flex-1 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+              >
+              <button
+                type="button"
+                onclick="handleAddKeyToCurrentGate()"
+                class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shrink-0 flex items-center space-x-1 transition-all"
+              >
+                <span>+ Thêm Key</span>
+              </button>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">
+            Gợi ý: Thêm nhiều API key để Gateway tự động luân phiên (Round-Robin) và tự nhảy sang key khác khi bị quá tải / Rate Limit (1 req/min).
+          </p>
         </div>
 
         <div class="pt-2 border-t border-slate-800/80">

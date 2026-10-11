@@ -332,19 +332,28 @@ export function initKeyPoolIfNeeded(initialItems = null) {
   if (Array.isArray(initialItems) && initialItems.length > 0) {
     upstreamKeyPool.length = 0;
     initialItems.forEach((item, idx) => {
-      if (item && item.apiKey) {
+      if (item && (item.apiKey || (Array.isArray(item.apiKeys) && item.apiKeys.length > 0))) {
         const parsed = parseGateNameAndModels(item.name || `Gate #${idx + 1}`);
         const assignedModels = Array.isArray(item.models) && item.models.length > 0
           ? item.models.map(m => String(m).trim()).filter(Boolean)
           : parsed.models;
+
+        const rawKeys = Array.isArray(item.apiKeys) && item.apiKeys.length > 0
+          ? item.apiKeys
+          : String(item.apiKey || '').split(/[\n,;]+/).map(k => k.trim()).filter(Boolean);
+        const cleanKeys = Array.from(new Set(rawKeys.map(k => String(k).trim()).filter(Boolean)));
+        const primaryKey = cleanKeys[0] || String(item.apiKey || '').trim();
 
         upstreamKeyPool.push({
           id: item.id || `gate_${idx + 1}`,
           name: parsed.displayName,
           models: assignedModels,
           baseUrl: (item.baseUrl || process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, ''),
-          apiKey: String(item.apiKey).trim(),
-          maskedKey: maskApiKey(item.apiKey),
+          apiKey: primaryKey,
+          apiKeys: cleanKeys.length > 0 ? cleanKeys : [primaryKey],
+          maskedKey: cleanKeys.length > 1
+            ? `${cleanKeys.length} Keys (${maskApiKey(primaryKey)})`
+            : maskApiKey(primaryKey),
           enabled: item.enabled !== false,
           status: item.status || 'online',
           requests: Number(item.requests || 0),
@@ -446,22 +455,29 @@ export function initKeyPoolIfNeeded(initialItems = null) {
 
 export function getPublicPoolList() {
   initKeyPoolIfNeeded();
-  return upstreamKeyPool.map((g, idx) => ({
-    id: g.id,
-    name: g.name,
-    models: Array.isArray(g.models) ? g.models : [],
-    baseUrl: g.baseUrl,
-    maskedKey: g.maskedKey,
-    enabled: g.enabled,
-    isPrimary: idx === 0,
-    status: g.status,
-    requests: g.requests,
-    errors: g.errors,
-    failures: g.errors,
-    lastLatencyMs: g.lastLatencyMs,
-    lastUsedAt: g.lastUsedAt,
-    addedAt: g.addedAt,
-  }));
+  return upstreamKeyPool.map((g, idx) => {
+    const keys = Array.isArray(g.apiKeys) && g.apiKeys.length > 0 ? g.apiKeys : (g.apiKey ? [g.apiKey] : []);
+    return {
+      id: g.id,
+      name: g.name,
+      models: Array.isArray(g.models) ? g.models : [],
+      baseUrl: g.baseUrl,
+      apiKey: g.apiKey,
+      apiKeys: keys,
+      maskedKey: keys.length > 1
+        ? `${keys.length} Keys (${maskApiKey(g.apiKey)})`
+        : g.maskedKey || maskApiKey(g.apiKey),
+      enabled: g.enabled,
+      isPrimary: idx === 0,
+      status: g.status,
+      requests: g.requests,
+      errors: g.errors,
+      failures: g.errors,
+      lastLatencyMs: g.lastLatencyMs,
+      lastUsedAt: g.lastUsedAt,
+      addedAt: g.addedAt,
+    };
+  });
 }
 
 export function getRawPoolList() {
@@ -485,7 +501,7 @@ export function addGatesToPool(rawKeysInput, customNamePrefix = 'Gate', customBa
 
   const added = [];
   for (const k of keys) {
-    const existing = upstreamKeyPool.find(g => g.apiKey === k && g.baseUrl === baseUrl);
+    const existing = upstreamKeyPool.find(g => (g.apiKey === k || (Array.isArray(g.apiKeys) && g.apiKeys.includes(k))) && g.baseUrl === baseUrl);
     if (existing) {
       existing.enabled = true;
       if (assignedModels.length > 0) existing.models = assignedModels;
@@ -498,6 +514,7 @@ export function addGatesToPool(rawKeysInput, customNamePrefix = 'Gate', customBa
       models: assignedModels,
       baseUrl,
       apiKey: k,
+      apiKeys: [k],
       maskedKey: maskApiKey(k),
       enabled: true,
       status: 'online',
@@ -524,10 +541,29 @@ export function updateGateInPool(gateId, updates = {}) {
   if (typeof updates.baseUrl === 'string' && updates.baseUrl.trim()) {
     gate.baseUrl = updates.baseUrl.trim().replace(/\/+$/, '');
   }
-  if (typeof updates.apiKey === 'string' && updates.apiKey.trim()) {
-    gate.apiKey = updates.apiKey.trim();
-    gate.maskedKey = maskApiKey(gate.apiKey);
+
+  // Cập nhật danh sách API Keys (nếu truyền apiKeys hoặc chuỗi apiKey chứa nhiều key)
+  if (Array.isArray(updates.apiKeys)) {
+    const cleanKeys = Array.from(new Set(updates.apiKeys.map(k => String(k).trim()).filter(Boolean)));
+    if (cleanKeys.length > 0) {
+      gate.apiKeys = cleanKeys;
+      gate.apiKey = cleanKeys[0];
+      gate.maskedKey = cleanKeys.length > 1
+        ? `${cleanKeys.length} Keys (${maskApiKey(cleanKeys[0])})`
+        : maskApiKey(cleanKeys[0]);
+    }
+  } else if (typeof updates.apiKey === 'string' && updates.apiKey.trim()) {
+    const rawKeys = updates.apiKey.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    const cleanKeys = Array.from(new Set(rawKeys));
+    if (cleanKeys.length > 0) {
+      gate.apiKeys = cleanKeys;
+      gate.apiKey = cleanKeys[0];
+      gate.maskedKey = cleanKeys.length > 1
+        ? `${cleanKeys.length} Keys (${maskApiKey(cleanKeys[0])})`
+        : maskApiKey(cleanKeys[0]);
+    }
   }
+
   if (Array.isArray(updates.models)) {
     gate.models = updates.models.map(m => String(m).trim()).filter(Boolean);
   }
@@ -564,6 +600,28 @@ export function selectGatesForRequest(requestModel = '') {
 
   const routedModel = MODEL_ALIASES[requestModel] || requestModel;
 
+  // Hàm bung danh sách Gate thành các Gate instances theo từng apiKey mà Gate đó sở hữu
+  const expandGateKeys = (gates) => {
+    const list = [];
+    for (const g of gates) {
+      const keys = Array.isArray(g.apiKeys) && g.apiKeys.length > 0 ? g.apiKeys : (g.apiKey ? [g.apiKey] : []);
+      if (keys.length <= 1) {
+        list.push(g);
+      } else {
+        keys.forEach((k, kIdx) => {
+          list.push({
+            ...g,
+            id: `${g.id}_k${kIdx + 1}`,
+            name: `${g.name} (Key #${kIdx + 1})`,
+            apiKey: k,
+            maskedKey: maskApiKey(k),
+          });
+        });
+      }
+    }
+    return list;
+  };
+
   // 1. Nếu có Gate được gán cụ thể model này -> ưu tiên sử dụng nhóm Gate đó
   if (requestModel || routedModel) {
     const matched = active.filter(g => {
@@ -576,9 +634,10 @@ export function selectGatesForRequest(requestModel = '') {
     });
 
     if (matched.length > 0) {
-      const startIdx = roundRobinCounter % matched.length;
+      const expanded = expandGateKeys(matched);
+      const startIdx = roundRobinCounter % expanded.length;
       roundRobinCounter = (roundRobinCounter + 1) % 1000000;
-      return matched.map((_, i) => matched[(startIdx + i) % matched.length]);
+      return expanded.map((_, i) => expanded[(startIdx + i) % expanded.length]);
     }
   }
 
@@ -586,9 +645,10 @@ export function selectGatesForRequest(requestModel = '') {
   if (UNOROUTER_MODELS.includes(routedModel)) {
     const unoGates = active.filter(g => g.baseUrl && g.baseUrl.toLowerCase().includes('unorouter'));
     if (unoGates.length > 0) {
-      const startIdx = roundRobinCounter % unoGates.length;
+      const expandedUno = expandGateKeys(unoGates);
+      const startIdx = roundRobinCounter % expandedUno.length;
       roundRobinCounter = (roundRobinCounter + 1) % 1000000;
-      return unoGates.map((_, i) => unoGates[(startIdx + i) % unoGates.length]);
+      return expandedUno.map((_, i) => expandedUno[(startIdx + i) % expandedUno.length]);
     }
     const rawUnoKeys = [
       process.env.UNOROUTER_API_KEYS || '',
@@ -632,9 +692,10 @@ export function selectGatesForRequest(requestModel = '') {
   if (routedModel === 'space-bunny-free') {
     const openCodeGates = active.filter(g => g.baseUrl && g.baseUrl.toLowerCase().includes('opencode'));
     if (openCodeGates.length > 0) {
-      const startIdx = roundRobinCounter % openCodeGates.length;
+      const expandedOpenCode = expandGateKeys(openCodeGates);
+      const startIdx = roundRobinCounter % expandedOpenCode.length;
       roundRobinCounter = (roundRobinCounter + 1) % 1000000;
-      return openCodeGates.map((_, i) => openCodeGates[(startIdx + i) % openCodeGates.length]);
+      return expandedOpenCode.map((_, i) => expandedOpenCode[(startIdx + i) % expandedOpenCode.length]);
     }
     const envOpenCodeKey = (process.env.OPENCODE_API_KEY || OPENCODE_API_KEY || '').trim();
     return [{
@@ -654,7 +715,7 @@ export function selectGatesForRequest(requestModel = '') {
     return g.models.includes('*');
   });
 
-  const poolToUse = generalGates.length > 0 ? generalGates : active;
+  const poolToUse = expandGateKeys(generalGates.length > 0 ? generalGates : active);
   const startIdx = roundRobinCounter % poolToUse.length;
   roundRobinCounter = (roundRobinCounter + 1) % 1000000;
   return poolToUse.map((_, i) => poolToUse[(startIdx + i) % poolToUse.length]);

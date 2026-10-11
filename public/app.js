@@ -1969,10 +1969,11 @@ async function handleAddGatesToPool(e) {
 }
 
 // ------------------------------------------
-// Gate Settings & Model Assignment Modal
+// Gate Settings & Model/Keys Assignment Modal
 // ------------------------------------------
 let currentEditingGateId = null;
 let currentEditingGateModels = [];
+let currentEditingGateKeys = [];
 
 function openGateSettingsModal(gateId) {
   const gate = adminGatesList.find(g => g.id === gateId);
@@ -1980,20 +1981,26 @@ function openGateSettingsModal(gateId) {
   currentEditingGateId = gate.id;
   currentEditingGateModels = Array.isArray(gate.models) ? [...gate.models] : [];
 
+  const rawKeys = Array.isArray(gate.apiKeys) && gate.apiKeys.length > 0
+    ? [...gate.apiKeys]
+    : (gate.apiKey ? [gate.apiKey] : []);
+  currentEditingGateKeys = Array.from(new Set(rawKeys.map(k => String(k).trim()).filter(Boolean)));
+
   const idInput = document.getElementById('setting-gate-id');
   const nameInput = document.getElementById('setting-gate-name');
   const urlInput = document.getElementById('setting-gate-url');
-  const keyInput = document.getElementById('setting-gate-key');
+  const newKeyInput = document.getElementById('setting-new-key-input');
   const allCheck = document.getElementById('setting-gate-all-models');
 
   if (idInput) idInput.value = gate.id;
   if (nameInput) nameInput.value = gate.name || '';
   if (urlInput) urlInput.value = gate.baseUrl || '';
-  if (keyInput) keyInput.value = '';
+  if (newKeyInput) newKeyInput.value = '';
   if (allCheck) {
     allCheck.checked = currentEditingGateModels.includes('*') || currentEditingGateModels.length === 0;
   }
 
+  renderGateSettingsKeysChips();
   renderGateSettingsModelsChips();
   const modal = document.getElementById('modal-gate-settings');
   if (modal) modal.classList.remove('hidden');
@@ -2005,6 +2012,57 @@ function closeGateSettingsModal() {
   if (modal) modal.classList.add('hidden');
   const feedback = document.getElementById('setting-gate-feedback');
   if (feedback) feedback.classList.add('hidden');
+}
+
+function renderGateSettingsKeysChips() {
+  const container = document.getElementById('setting-gate-keys-chips');
+  if (!container) return;
+
+  if (currentEditingGateKeys.length === 0) {
+    container.innerHTML = `<span class="text-xs text-rose-400 italic">Chưa có API Key nào. Vui lòng thêm ít nhất 1 key.</span>`;
+    return;
+  }
+
+  container.innerHTML = currentEditingGateKeys.map((key, idx) => {
+    const masked = key.length <= 12 ? key.slice(0, 4) + '****' : `${key.slice(0, 8)}...${key.slice(-4)}`;
+    return `
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 text-xs font-mono">
+        <span class="text-[10px] text-emerald-400 font-sans font-bold">#${idx + 1}</span>
+        <span>${escapeHtml(masked)}</span>
+        <button
+          type="button"
+          onclick="handleRemoveKeyFromCurrentGate(${idx})"
+          class="hover:text-rose-400 text-slate-400 font-bold ml-1 transition-colors"
+          title="Xóa Key này khỏi Gate"
+        >✕</button>
+      </span>
+    `;
+  }).join('');
+}
+
+function handleAddKeyToCurrentGate() {
+  const input = document.getElementById('setting-new-key-input');
+  const val = (input?.value || '').trim();
+  if (!val) return;
+
+  const rawSplits = val.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+  rawSplits.forEach(k => {
+    if (!currentEditingGateKeys.includes(k)) {
+      currentEditingGateKeys.push(k);
+    }
+  });
+
+  if (input) input.value = '';
+  renderGateSettingsKeysChips();
+}
+
+function handleRemoveKeyFromCurrentGate(keyIndex) {
+  if (currentEditingGateKeys.length <= 1) {
+    alert('Mỗi Gate phải giữ lại ít nhất 1 API Key hoạt động.');
+    return;
+  }
+  currentEditingGateKeys.splice(keyIndex, 1);
+  renderGateSettingsKeysChips();
 }
 
 function renderGateSettingsModelsChips() {
@@ -2069,8 +2127,24 @@ async function handleSaveGateSettings(e) {
   const feedback = document.getElementById('setting-gate-feedback');
   const name = (document.getElementById('setting-gate-name')?.value || '').trim();
   const baseUrl = (document.getElementById('setting-gate-url')?.value || '').trim();
-  const apiKey = (document.getElementById('setting-gate-key')?.value || '').trim();
   const allCheck = document.getElementById('setting-gate-all-models');
+
+  // Kiểm tra nếu người dùng vừa gõ vào ô thêm key nhưng quên bấm nút "+ Thêm Key"
+  const pendingKey = (document.getElementById('setting-new-key-input')?.value || '').trim();
+  if (pendingKey) {
+    const rawSplits = pendingKey.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    rawSplits.forEach(k => {
+      if (!currentEditingGateKeys.includes(k)) currentEditingGateKeys.push(k);
+    });
+  }
+
+  if (currentEditingGateKeys.length === 0) {
+    if (feedback) {
+      feedback.className = 'p-2.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs block';
+      feedback.textContent = 'Lỗi: Gate cần có ít nhất 1 API Key hoạt động.';
+    }
+    return;
+  }
 
   const models = allCheck?.checked ? ['*'] : currentEditingGateModels;
 
@@ -2086,7 +2160,8 @@ async function handleSaveGateSettings(e) {
         gateId: currentEditingGateId,
         name,
         baseUrl,
-        apiKey: apiKey || undefined,
+        apiKeys: currentEditingGateKeys,
+        apiKey: currentEditingGateKeys[0],
         models,
         discordUserId: discordUser?.id || '',
       }),

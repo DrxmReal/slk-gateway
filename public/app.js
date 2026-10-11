@@ -1364,6 +1364,7 @@ async function handleChatSubmit(e) {
         messageContentEl.classList.remove('streaming-cursor');
         messageContentEl.innerHTML += '<p class="text-xs text-amber-400 italic mt-2">[Đã dừng phản hồi]</p>';
       }
+    } else {
       if (messageContentEl) {
         messageContentEl.classList.remove('streaming-cursor');
         const isRateLimit = lastResponseStatus === 429;
@@ -1399,6 +1400,7 @@ async function handleChatSubmit(e) {
         }
       }
       if (lastResponseStatus === 402) loadWallet(); // Hết tiền -> cập nhật số dư ví
+    }
   } finally {
     toggleGenerationButtons(false);
     activeAbortController = null;

@@ -1,4 +1,4 @@
-import { chargeUserForRequest, getRequestFeeVnd } from './_wallet.js';
+import { chargeUserForRequest, getRequestFeeVnd, refundUserForFailedRequest } from './_wallet.js';
 
 export const DEFAULT_UPSTREAM_URL = (process.env.UPSTREAM_BASE_URL || 'https://api.hcnsec.cn/v1').replace(/\/+$/, '');
 export const DEFAULT_UPSTREAM_KEY = (process.env.UPSTREAM_API_KEY || '').trim();
@@ -14,8 +14,7 @@ export const UNOROUTER_API_KEY = (process.env.UNOROUTER_API_KEY || '').trim();
 export const DEFAULT_DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1558375997416677426';
 export const DEFAULT_DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
 
-// Mật khẩu Admin mặc định & Discord User ID duy nhất có quyền Admin Pool
-export const DEFAULT_ADMIN_SECRET = 'slk-admin';
+// Discord User ID duy nhất của Owner có toàn quyền Admin Gateway & Pool
 export const OWNER_ADMIN_DISCORD_ID = '1207080545159487498';
 
 // Danh sách model định tuyến qua UnoRouter
@@ -601,19 +600,32 @@ export function isAllowedAdminDiscordId(discordUserId = '') {
   return adminIds.includes(cleanId);
 }
 
-export function checkAdminSecret(candidateSecret = '', discordUserId = '') {
-  if (isAllowedAdminDiscordId(discordUserId)) {
+export function checkAdminSecret(candidateSecret = '', verifiedDiscordId = '') {
+  // 1. Chỉ chấp nhận ID nếu đã được xác thực chữ ký (từ Bearer token)
+  if (verifiedDiscordId && isAllowedAdminDiscordId(verifiedDiscordId)) {
     return true;
   }
-  // Nếu có truyền discordUserId nhưng không phải ID Admin 1207080545159487498 thì từ chối ngay
-  if (discordUserId && !isAllowedAdminDiscordId(discordUserId)) {
-    return false;
-  }
-  const expectedSecret = (process.env.ADMIN_SECRET || DEFAULT_ADMIN_SECRET).trim();
-  const masterKey = (process.env.UPSTREAM_API_KEY || DEFAULT_UPSTREAM_KEY).trim();
   const cleanCandidate = String(candidateSecret || '').trim();
   if (!cleanCandidate) return false;
-  return cleanCandidate === expectedSecret || cleanCandidate === masterKey;
+
+  // 2. Chặn các mật khẩu mặc định hoặc quá yếu
+  if (cleanCandidate.toLowerCase() === 'slk-admin' || cleanCandidate === 'admin' || cleanCandidate === '123456') {
+    return false;
+  }
+
+  const envAdminSecret = (process.env.ADMIN_SECRET || '').trim();
+  const masterKey = (process.env.UPSTREAM_API_KEY || '').trim();
+
+  // 3. Khớp ADMIN_SECRET được cấu hình riêng trong biến môi trường
+  if (envAdminSecret && cleanCandidate === envAdminSecret) {
+    return true;
+  }
+  // 4. Khớp Master Upstream API Key (chỉ có Admin nắm giữ)
+  if (masterKey && cleanCandidate === masterKey) {
+    return true;
+  }
+
+  return false;
 }
 
 async function sha256Hex(input) {
@@ -624,16 +636,26 @@ async function sha256Hex(input) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Lấy secret dùng để ký API Key (ưu tiên env riêng để không bị lộ)
+function getGatewaySigningSecret() {
+  return (
+    process.env.GATEWAY_SIGNING_SECRET ||
+    process.env.DISCORD_CLIENT_SECRET ||
+    process.env.UPSTREAM_API_KEY ||
+    'slk_gw_sec_2026_x89a1c'
+  ).slice(0, 32);
+}
+
 // Tạo API Key mặc định dựa trên Discord User ID (sk-dc-<uid>-<sig>)
 export async function generateDiscordUserApiKey(discordUserId) {
-  const secret = (process.env.UPSTREAM_API_KEY || process.env.DISCORD_CLIENT_SECRET || 'slk-gateway-secret-salt-2026').slice(0, 16);
+  const secret = getGatewaySigningSecret();
   const hashHex = await sha256Hex(`${discordUserId}:${secret}`);
   return `sk-dc-${discordUserId}-${hashHex.slice(0, 24)}`;
 }
 
 // Tạo API Key mới có salt ngẫu nhiên trong Dashboard (sk-nx-<uid>-<salt>-<sig>)
 export async function generateCustomDiscordApiKey(discordUserId, customSalt = '') {
-  const secret = (process.env.UPSTREAM_API_KEY || process.env.DISCORD_CLIENT_SECRET || 'slk-gateway-secret-salt-2026').slice(0, 16);
+  const secret = getGatewaySigningSecret();
   const salt = customSalt || Math.random().toString(36).substring(2, 10);
   const hashHex = await sha256Hex(`${discordUserId}:${salt}:${secret}`);
   return `sk-nx-${discordUserId}-${salt}-${hashHex.slice(0, 20)}`;
@@ -908,6 +930,10 @@ export async function proxyRequest(request, targetPath) {
         gate.errors += 1;
         gate.status = upstreamRes.status === 429 ? 'rate_limited' : 'error';
         const errText = await upstreamRes.text().catch(() => '');
+        // Hoàn lại tiền cho user nếu lỗi xuất phát từ hệ thống/nhà cung cấp
+        if (verifiedUid && chargeInfo) {
+          await refundUserForFailedRequest(verifiedUid, chargeInfo.feeVnd, requestModel).catch(() => {});
+        }
         return maskAndSanitizeErrorResponse(upstreamRes.status, errText, corsHeaders);
       }
 
@@ -932,6 +958,11 @@ export async function proxyRequest(request, targetPath) {
       gate.status = 'error';
       lastError = err;
     }
+  }
+
+  // Hoàn tiền cho user nếu tất cả các Gate đều timeout hoặc sập
+  if (verifiedUid && chargeInfo) {
+    await refundUserForFailedRequest(verifiedUid, chargeInfo.feeVnd, requestModel).catch(() => {});
   }
 
   if (lastUpstreamRes) {

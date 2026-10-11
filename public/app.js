@@ -2126,6 +2126,7 @@ CREATE TABLE IF NOT EXISTS public.slk_users (
   global_name TEXT,
   avatar_url TEXT,
   is_admin BOOLEAN DEFAULT FALSE,
+  balance_vnd BIGINT NOT NULL DEFAULT 100000,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -2155,20 +2156,6 @@ CREATE TABLE IF NOT EXISTS public.slk_gate_pool (
   added_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE public.slk_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.slk_api_keys ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.slk_gate_pool ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "slk_users_all" ON public.slk_users;
-CREATE POLICY "slk_users_all" ON public.slk_users FOR ALL USING (true) WITH CHECK (true);
-DROP POLICY IF EXISTS "slk_api_keys_all" ON public.slk_api_keys;
-CREATE POLICY "slk_api_keys_all" ON public.slk_api_keys FOR ALL USING (true) WITH CHECK (true);
-DROP POLICY IF EXISTS "slk_gate_pool_all" ON public.slk_gate_pool;
-CREATE POLICY "slk_gate_pool_all" ON public.slk_gate_pool FOR ALL USING (true) WITH CHECK (true);
-
--- 4. VÍ TIỀN (VND)
-ALTER TABLE public.slk_users ADD COLUMN IF NOT EXISTS balance_vnd BIGINT NOT NULL DEFAULT 100000;
-
--- 5. Lịch sử giao dịch ví
 CREATE TABLE IF NOT EXISTS public.slk_transactions (
   id TEXT PRIMARY KEY,
   discord_id TEXT NOT NULL REFERENCES public.slk_users(discord_id) ON DELETE CASCADE,
@@ -2179,15 +2166,46 @@ CREATE TABLE IF NOT EXISTS public.slk_transactions (
   note TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
 CREATE INDEX IF NOT EXISTS idx_slk_transactions_discord_id ON public.slk_transactions(discord_id);
 CREATE INDEX IF NOT EXISTS idx_slk_transactions_created_at ON public.slk_transactions(created_at DESC);
-ALTER TABLE public.slk_transactions ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "slk_transactions_all" ON public.slk_transactions;
-CREATE POLICY "slk_transactions_all" ON public.slk_transactions FOR ALL USING (true) WITH CHECK (true);
 
--- 6. RPC trừ/cộng tiền ATOMIC
+-- BẬT ROW LEVEL SECURITY (RLS) CHỐNG HACK TIỀN & LỘ KEYS
+ALTER TABLE public.slk_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.slk_api_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.slk_gate_pool ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.slk_transactions ENABLE ROW LEVEL SECURITY;
+
+-- 1. slk_gate_pool: Khóa hoàn toàn, chỉ backend service_role được truy cập
+DROP POLICY IF EXISTS "slk_gate_pool_all" ON public.slk_gate_pool;
+DROP POLICY IF EXISTS "slk_gate_pool_service_role" ON public.slk_gate_pool;
+REVOKE ALL ON public.slk_gate_pool FROM anon, authenticated;
+GRANT ALL ON public.slk_gate_pool TO service_role;
+CREATE POLICY "slk_gate_pool_service_role" ON public.slk_gate_pool FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- 2. slk_users: Client anon chỉ được SELECT, không được tự UPDATE sửa balance
+DROP POLICY IF EXISTS "slk_users_all" ON public.slk_users;
+DROP POLICY IF EXISTS "slk_users_select" ON public.slk_users;
+DROP POLICY IF EXISTS "slk_users_service_role" ON public.slk_users;
+CREATE POLICY "slk_users_select" ON public.slk_users FOR SELECT TO anon, authenticated, service_role USING (true);
+CREATE POLICY "slk_users_service_role" ON public.slk_users FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- 3. slk_api_keys & transactions:
+DROP POLICY IF EXISTS "slk_api_keys_all" ON public.slk_api_keys;
+DROP POLICY IF EXISTS "slk_api_keys_select" ON public.slk_api_keys;
+DROP POLICY IF EXISTS "slk_api_keys_service_role" ON public.slk_api_keys;
+CREATE POLICY "slk_api_keys_select" ON public.slk_api_keys FOR SELECT TO anon, authenticated, service_role USING (true);
+CREATE POLICY "slk_api_keys_service_role" ON public.slk_api_keys FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "slk_transactions_all" ON public.slk_transactions;
+DROP POLICY IF EXISTS "slk_transactions_select" ON public.slk_transactions;
+DROP POLICY IF EXISTS "slk_transactions_service_role" ON public.slk_transactions;
+CREATE POLICY "slk_transactions_select" ON public.slk_transactions FOR SELECT TO anon, authenticated, service_role USING (true);
+CREATE POLICY "slk_transactions_service_role" ON public.slk_transactions FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- 4. RPC trừ tiền ATOMIC (Chống Race Condition)
 CREATE OR REPLACE FUNCTION public.slk_debit_balance(p_discord_id TEXT, p_amount BIGINT)
-RETURNS JSON LANGUAGE plpgsql SECURITY INVOKER AS $$
+RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE v_balance BIGINT;
 BEGIN
   IF p_amount IS NULL OR p_amount <= 0 THEN RETURN json_build_object('ok', false, 'error', 'invalid_amount'); END IF;
@@ -2202,8 +2220,9 @@ BEGIN
 END;
 $$;
 
+-- 5. RPC nạp tiền (Chỉ service_role backend được gọi)
 CREATE OR REPLACE FUNCTION public.slk_topup_balance(p_discord_id TEXT, p_amount BIGINT)
-RETURNS JSON LANGUAGE plpgsql SECURITY INVOKER AS $$
+RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE v_balance BIGINT;
 BEGIN
   IF p_amount IS NULL OR p_amount <= 0 THEN RETURN json_build_object('ok', false, 'error', 'invalid_amount'); END IF;
@@ -2217,10 +2236,11 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.slk_debit_balance(TEXT, BIGINT) TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.slk_topup_balance(TEXT, BIGINT) TO anon, authenticated, service_role;`;
+REVOKE EXECUTE ON FUNCTION public.slk_topup_balance(TEXT, BIGINT) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.slk_topup_balance(TEXT, BIGINT) TO service_role;`;
 
   navigator.clipboard.writeText(sql).then(() => {
-    alert('Đã sao chép đoạn SQL tạo bảng Supabase (bao gồm bảng Ví tiền & Giao dịch)! Hãy dán vào mục "SQL Editor" trên Supabase và nhấn Run.');
+    alert('Đã sao chép đoạn SQL bảo mật Supabase (chống hack tiền & bảo vệ Gate Pool)! Hãy dán vào mục "SQL Editor" trên Supabase và nhấn Run.');
   });
 }
 

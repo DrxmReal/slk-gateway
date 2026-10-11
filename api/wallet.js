@@ -53,12 +53,12 @@ export default async function handler(request) {
     );
   }
 
-  // Xem ví của người khác -> bắt buộc quyền Admin
-  if (verifiedUid && targetUserId !== verifiedUid) {
-    const isAdmin = isAllowedAdminDiscordId(verifiedUid) || checkAdminSecret(headerSecret, verifiedUid);
+  // Xem ví của người khác -> bắt buộc có quyền Admin
+  if (targetUserId !== verifiedUid) {
+    const isAdmin = (verifiedUid && isAllowedAdminDiscordId(verifiedUid)) || checkAdminSecret(headerSecret, verifiedUid);
     if (!isAdmin) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Forbidden: Chỉ Admin mới được xem ví của user khác.' }),
+        JSON.stringify({ success: false, error: 'Forbidden: Bạn chỉ được xem ví của chính mình.' }),
         { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
       );
     }

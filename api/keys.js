@@ -19,9 +19,11 @@ export const config = {
 
 // Chỉ cho phép thao tác hộ user khác khi có quyền Admin
 function canActOnBehalfOfUser(verifiedUid, targetUid, headerSecret = '') {
-  if (!targetUid || !verifiedUid) return true;
-  if (targetUid === verifiedUid) return true;
-  return isAllowedAdminDiscordId(verifiedUid) || checkAdminSecret(headerSecret, verifiedUid);
+  if (!targetUid) return false;
+  if (verifiedUid && targetUid === verifiedUid) return true;
+  const isOwner = Boolean(verifiedUid && isAllowedAdminDiscordId(verifiedUid));
+  const hasSecret = Boolean(headerSecret && checkAdminSecret(headerSecret, verifiedUid));
+  return isOwner || hasSecret;
 }
 
 export default async function handler(request) {

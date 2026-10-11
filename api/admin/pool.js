@@ -68,14 +68,20 @@ export default async function handler(request) {
   const verifiedDiscordId = await extractVerifiedDiscordUserId(bearerToken);
   const headerSecret = request.headers.get('x-admin-secret') || url.searchParams.get('secret') || '';
 
-  const authorized =
-    isAllowedAdminDiscordId(verifiedDiscordId) ||
-    (headerSecret && checkAdminSecret(headerSecret, verifiedDiscordId)) ||
-    (await checkAuth(request));
+  // Chỉ cho phép:
+  // 1. Tài khoản Discord của Owner (1207080545159487498) đã ký token hợp lệ
+  // 2. Cung cấp Admin Secret / Master Key hợp lệ
+  // Tuyệt đối không cho phép user thường (bỏ checkAuth)
+  const isOwnerAdmin = isAllowedAdminDiscordId(verifiedDiscordId);
+  const hasValidSecret = Boolean(headerSecret && checkAdminSecret(headerSecret, verifiedDiscordId));
+  const authorized = isOwnerAdmin || hasValidSecret;
 
   if (!authorized) {
     return new Response(
-      JSON.stringify({ success: false, error: 'Unauthorized: Chỉ Admin Discord ID 1207080545159487498 mới có quyền truy cập.' }),
+      JSON.stringify({
+        success: false,
+        error: 'Unauthorized: Bạn không có quyền truy cập Admin Pool. Yêu cầu đăng nhập tài khoản Discord Admin hoặc cung cấp Admin Secret hợp lệ.',
+      }),
       { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
   }
@@ -100,14 +106,6 @@ export default async function handler(request) {
   };
 
   if (request.method === 'GET') {
-    const discordUserId = verifiedDiscordId || url.searchParams.get('discordUserId') || '';
-    if (!checkAdminSecret(headerSecret, discordUserId)) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Forbidden: Chỉ Admin Discord ID 1207080545159487498 mới được xem Admin Pool.' }),
-        { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
-    }
-
     const sbGates = await dbLoadGatePoolFromSupabase();
     if (sbGates && sbGates.length > 0) {
       initKeyPoolIfNeeded(sbGates);
@@ -122,14 +120,14 @@ export default async function handler(request) {
   if (request.method === 'POST') {
     try {
       const body = await request.json();
-      const secret = body.adminSecret || headerSecret;
-      const discordUserId = verifiedDiscordId || body.discordUserId || '';
+      const postSecret = body.adminSecret || headerSecret;
+      const isPostAuthorized = isOwnerAdmin || Boolean(postSecret && checkAdminSecret(postSecret, verifiedDiscordId));
 
-      if (!checkAdminSecret(secret, discordUserId)) {
+      if (!isPostAuthorized) {
         return new Response(
           JSON.stringify({
             success: false,
-            error: 'Forbidden: Chỉ tài khoản Discord ID 1207080545159487498 mới có quyền quản trị Admin Pool!',
+            error: 'Forbidden: Thao tác bị từ chối. Chỉ tài khoản Discord Admin hoặc Admin Secret hợp lệ mới có quyền thực hiện.',
           }),
           { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
         );

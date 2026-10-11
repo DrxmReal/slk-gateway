@@ -146,3 +146,22 @@ export async function getWalletInfo(discordUserId) {
 
   return { balanceVnd, transactions };
 }
+
+// Hoàn phí cho user khi upstream gặp lỗi hệ thống (504 Timeout, 502 Bad Gateway)
+export async function refundUserForFailedRequest(discordUserId, amountVnd, model = '') {
+  const uid = String(discordUserId || '').trim();
+  const amount = Math.floor(Number(amountVnd) || 0);
+  if (!uid || amount <= 0) return { success: false };
+
+  const result = await dbTopUpUserBalanceVnd(uid, amount);
+  if (result.ok) {
+    await dbInsertWalletTransaction(uid, {
+      type: 'topup',
+      amountVnd: amount,
+      balanceAfterVnd: result.balanceVnd,
+      model: model || 'auto',
+      note: `Hoàn phí (Lỗi hệ thống / Timeout): ${model || 'auto'}`,
+    });
+  }
+  return result;
+}

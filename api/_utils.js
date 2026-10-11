@@ -407,7 +407,7 @@ export function initKeyPoolIfNeeded(initialItems = null) {
     });
   });
 
-  // Tự động nạp thêm các Gate UnoRouter mặc định vào Pool nếu có
+  // Tự động nạp Gate UnoRouter mặc định vào Pool (gom nhiều key)
   const defaultUnoKeys = Array.from(
     new Set(
       [
@@ -422,10 +422,10 @@ export function initKeyPoolIfNeeded(initialItems = null) {
     )
   );
 
-  defaultUnoKeys.forEach((k, idx) => {
+  if (defaultUnoKeys.length > 0) {
     upstreamKeyPool.push({
-      id: `gate_unorouter_${idx + 1}`,
-      name: `UnoRouter Gate #${idx + 1}`,
+      id: 'gate_unorouter_1',
+      name: 'UnoRouter Gate',
       models: [
         'step-5-preview',
         'step-5-preview:free',
@@ -437,8 +437,11 @@ export function initKeyPoolIfNeeded(initialItems = null) {
         'agnes-3.0-flash:free',
       ],
       baseUrl: UNOROUTER_BASE_URL,
-      apiKey: k,
-      maskedKey: maskApiKey(k),
+      apiKey: defaultUnoKeys[0],
+      apiKeys: defaultUnoKeys,
+      maskedKey: defaultUnoKeys.length > 1
+        ? `${defaultUnoKeys.length} Keys (${maskApiKey(defaultUnoKeys[0])})`
+        : maskApiKey(defaultUnoKeys[0]),
       enabled: true,
       status: 'online',
       requests: 0,
@@ -447,7 +450,31 @@ export function initKeyPoolIfNeeded(initialItems = null) {
       lastUsedAt: null,
       addedAt: new Date().toISOString(),
     });
-  });
+  }
+
+  // Tự động nạp Gate OpenCode Zen vào Pool (model space-bunny)
+  const openCodeKey = (process.env.OPENCODE_API_KEY || OPENCODE_API_KEY || '').trim();
+  if (openCodeKey) {
+    upstreamKeyPool.push({
+      id: 'gate_opencode_1',
+      name: 'OpenCode Zen Gate',
+      models: [
+        'space-bunny',
+        'space-bunny-free',
+      ],
+      baseUrl: OPENCODE_BASE_URL,
+      apiKey: openCodeKey,
+      apiKeys: [openCodeKey],
+      maskedKey: maskApiKey(openCodeKey),
+      enabled: true,
+      status: 'online',
+      requests: 0,
+      errors: 0,
+      lastLatencyMs: null,
+      lastUsedAt: null,
+      addedAt: new Date().toISOString(),
+    });
+  }
 
   keyPoolInitialized = true;
   return upstreamKeyPool;

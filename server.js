@@ -88,30 +88,31 @@ function saveKeyPoolToDisk() {
   }
 }
 
-// Thứ tự ưu tiên: key-pool.json (local) -> Supabase -> biến môi trường
+// Thứ tự ưu tiên: Supabase (đồng bộ đám mây) -> key-pool.json (local fallback) -> biến môi trường
 async function initializeKeyPool() {
-  try {
-    if (fs.existsSync(poolFilePath)) {
-      const raw = JSON.parse(fs.readFileSync(poolFilePath, 'utf8'));
-      if (Array.isArray(raw) && raw.length > 0) {
-        initKeyPoolIfNeeded(raw);
-        return;
-      }
-    }
-  } catch (err) {
-    console.warn('Could not load key-pool.json:', err.message);
-  }
-
   try {
     const sbGates = await dbLoadGatePoolFromSupabase();
     if (sbGates && sbGates.length > 0) {
       initKeyPoolIfNeeded(sbGates);
       saveKeyPoolToDisk();
-      console.log('☁️  Đã nạp Gate Pool từ Supabase.');
+      console.log('☁️  Đã đồng bộ Gate Pool từ Supabase.');
       return;
     }
   } catch (err) {
     console.warn('Could not load gate pool from Supabase:', err.message);
+  }
+
+  try {
+    if (fs.existsSync(poolFilePath)) {
+      const raw = JSON.parse(fs.readFileSync(poolFilePath, 'utf8'));
+      if (Array.isArray(raw) && raw.length > 0) {
+        initKeyPoolIfNeeded(raw);
+        console.log('📁 Đã nạp Gate Pool từ file key-pool.json.');
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load key-pool.json:', err.message);
   }
 
   initKeyPoolIfNeeded();

@@ -1,4 +1,5 @@
 import { chargeUserForRequest, getRequestFeeVnd, refundUserForFailedRequest } from './_wallet.js';
+import { dbLoadGatePoolFromSupabase } from './_supabase.js';
 
 export const DEFAULT_UPSTREAM_URL = (process.env.UPSTREAM_BASE_URL || 'https://api.hcnsec.cn/v1').replace(/\/+$/, '');
 export const DEFAULT_UPSTREAM_KEY = (process.env.UPSTREAM_API_KEY || '').trim();
@@ -322,6 +323,159 @@ export function handleOptions() {
 let keyPoolInitialized = false;
 let roundRobinCounter = 0;
 const upstreamKeyPool = [];
+let poolLastSyncTime = 0;
+const POOL_SYNC_TTL_MS = 10000;
+let isSyncingPool = false;
+
+export async function ensureKeyPoolSynced() {
+  initKeyPoolIfNeeded();
+  const now = Date.now();
+  if (now - poolLastSyncTime < POOL_SYNC_TTL_MS && upstreamKeyPool.length > 0) {
+    return upstreamKeyPool;
+  }
+  if (isSyncingPool) return upstreamKeyPool;
+  isSyncingPool = true;
+  try {
+    const sbGates = await dbLoadGatePoolFromSupabase();
+    if (sbGates && Array.isArray(sbGates) && sbGates.length > 0) {
+      initKeyPoolIfNeeded(sbGates);
+      poolLastSyncTime = Date.now();
+    }
+  } catch (err) {
+    // Keep in-memory pool on error
+  } finally {
+    isSyncingPool = false;
+  }
+  return upstreamKeyPool;
+}
+
+export function synthesizeCatalogEntry(modelId, gate = null) {
+  const cleanId = String(modelId || '').trim();
+  let provider = gate?.name || 'Gate Model';
+  provider = provider.replace(/\s*Gate.*$/i, '').trim() || provider;
+  let providerCode = 'gate';
+
+  if (cleanId.includes('/')) {
+    const parts = cleanId.split('/');
+    const prefix = parts[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    providerCode = prefix;
+    const prettyProviders = {
+      nvidia: 'NVIDIA',
+      inclusionai: 'Inclusion AI',
+      thinkingmachines: 'Thinking Machines',
+      qwen: 'Qwen AI',
+      meta: 'Meta Llama',
+      meta_llama: 'Meta Llama',
+      deepseek: 'DeepSeek',
+      google: 'Google',
+      anthropic: 'Anthropic',
+      openai: 'OpenAI',
+      mistralai: 'Mistral AI',
+      microsoft: 'Microsoft',
+      cohere: 'Cohere',
+      apodex: 'Apodex AI',
+    };
+    if (prettyProviders[prefix]) {
+      provider = prettyProviders[prefix];
+    } else {
+      provider = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    }
+  } else if (gate?.name?.toLowerCase().includes('openrouter')) {
+    provider = 'OpenRouter';
+    providerCode = 'openrouter';
+  } else if (gate?.name?.toLowerCase().includes('unorouter')) {
+    provider = 'UnoRouter';
+    providerCode = 'unorouter';
+  } else if (gate?.name?.toLowerCase().includes('opencode')) {
+    provider = 'OpenCode Zen';
+    providerCode = 'opencode';
+  }
+
+  const tags = [];
+  const lower = cleanId.toLowerCase();
+  if (lower.includes(':free') || lower.includes('-free')) tags.push('Free');
+  if (lower.includes('flash') || lower.includes('mini') || lower.includes('lightning') || lower.includes('small') || lower.includes('lite')) tags.push('Fast');
+  if (lower.includes('thinking') || lower.includes('reason') || lower.includes('nemotron') || lower.includes('coder') || lower.includes('r1')) tags.push('Reasoning');
+  tags.push('Tools');
+  tags.push('Gate');
+
+  const isDiscount = (lower.includes('free') || lower.includes('mini') || lower.includes('flash') || lower.includes('lightning') || lower.includes('small') || lower.includes('lite'));
+  const priceLabel = isDiscount ? '500 ₫ / yêu cầu' : '1.000 ₫ / yêu cầu';
+
+  return {
+    id: cleanId,
+    object: 'model',
+    created: Math.floor(Date.now() / 1000),
+    owned_by: provider,
+    provider: provider,
+    provider_code: providerCode,
+    free: false,
+    price_type: 'request',
+    price_label: priceLabel,
+    price_input: priceLabel,
+    price_output: '',
+    tags: Array.from(new Set(tags)),
+    description: `${cleanId}: mô hình định tuyến qua "${gate?.name || 'Gate'}", hỗ trợ phản hồi nhanh, tối ưu chi phí và tính ổn định qua SLK Gateway.`,
+    supported_endpoint_types: ['openai'],
+    status: {
+      uptime: 99.80,
+      latency: '1.50s',
+      tps: '85.0t/s',
+      state: 'online',
+      bars: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    }
+  };
+}
+
+export function getMergedModelsCatalog() {
+  initKeyPoolIfNeeded();
+  const catalog = [...MODELS_CATALOG];
+  const catalogIds = new Set(catalog.map(m => m.id.toLowerCase()));
+
+  for (const g of upstreamKeyPool) {
+    if (g.enabled === false || !Array.isArray(g.models)) continue;
+    for (const rawModel of g.models) {
+      const m = String(rawModel || '').trim();
+      if (!m || m === '*') continue;
+      if (catalogIds.has(m.toLowerCase())) continue;
+
+      catalogIds.add(m.toLowerCase());
+      catalog.push(synthesizeCatalogEntry(m, g));
+    }
+  }
+
+  return catalog;
+}
+
+export function getAllAllowedModels() {
+  initKeyPoolIfNeeded();
+  const set = new Set(FREE_MODELS);
+  for (const g of upstreamKeyPool) {
+    if (g.enabled !== false && Array.isArray(g.models)) {
+      for (const rawModel of g.models) {
+        const m = String(rawModel || '').trim();
+        if (m && m !== '*') {
+          set.add(m);
+        }
+      }
+    }
+  }
+  return Array.from(set);
+}
+
+export function isModelAllowed(requestModel = '') {
+  if (!requestModel) return true;
+  initKeyPoolIfNeeded();
+  if (FREE_MODELS.includes(requestModel)) return true;
+  for (const g of upstreamKeyPool) {
+    if (g.enabled !== false && Array.isArray(g.models)) {
+      if (g.models.includes('*') || g.models.includes(requestModel)) return true;
+      const routed = MODEL_ALIASES[requestModel];
+      if (routed && g.models.includes(routed)) return true;
+    }
+  }
+  return false;
+}
 
 export function maskApiKey(key = '') {
   const clean = String(key).trim();
@@ -581,6 +735,7 @@ export function addGatesToPool(rawKeysInput, customNamePrefix = 'Gate', customBa
     upstreamKeyPool.push(newGate);
     added.push(newGate);
   }
+  poolLastSyncTime = Date.now();
   return added;
 }
 
@@ -624,6 +779,7 @@ export function updateGateInPool(gateId, updates = {}) {
   if (typeof updates.enabled === 'boolean') {
     gate.enabled = updates.enabled;
   }
+  poolLastSyncTime = Date.now();
   return gate;
 }
 
@@ -632,6 +788,7 @@ export function toggleGateInPool(gateId, enabled) {
   const gate = upstreamKeyPool.find(g => g.id === gateId);
   if (!gate) return null;
   gate.enabled = typeof enabled === 'boolean' ? enabled : !gate.enabled;
+  poolLastSyncTime = Date.now();
   return gate;
 }
 
@@ -643,6 +800,7 @@ export function removeGateFromPool(gateId) {
   const idx = upstreamKeyPool.findIndex(g => g.id === gateId);
   if (idx === -1) return false;
   upstreamKeyPool.splice(idx, 1);
+  poolLastSyncTime = Date.now();
   return true;
 }
 
@@ -932,7 +1090,7 @@ export async function checkAuth(request) {
 }
 
 export function mergeModelsWithCatalog() {
-  return MODELS_CATALOG;
+  return getMergedModelsCatalog();
 }
 
 // Header HTTP chỉ nhận ký tự ByteString (latin1) -> mã hóa ký tự ngoài latin1
@@ -1010,10 +1168,11 @@ export async function proxyRequest(request, targetPath) {
 
   // Nếu gọi danh sách /v1/models -> Chỉ trả về các model được phép kèm thông tin Status (miễn phí)
   if (cleanPath === 'models' && request.method === 'GET') {
+    await ensureKeyPoolSynced();
     return new Response(
       JSON.stringify({
         object: 'list',
-        data: MODELS_CATALOG,
+        data: getMergedModelsCatalog(),
         free_only: true,
         success: true
       }),
@@ -1033,7 +1192,7 @@ export async function proxyRequest(request, targetPath) {
   searchParams.delete('path');
   const queryStr = searchParams.toString();
 
-  // Đọc & kiểm tra body: chỉ cho phép các model trong FREE_MODELS
+  // Đọc & kiểm tra body: chỉ cho phép các model trong FREE_MODELS hoặc Gate Pool
   let bodyPayload = null;
   let requestModel = '';
   if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -1058,14 +1217,16 @@ export async function proxyRequest(request, targetPath) {
           }
 
           requestModel = String(parsed.model || '').trim();
-          if (!FREE_MODELS.includes(requestModel)) {
+          await ensureKeyPoolSynced();
+          if (!isModelAllowed(requestModel)) {
+            const allowedList = getAllAllowedModels();
             return new Response(
               JSON.stringify({
                 error: {
-                  message: 'Model "' + (requestModel || '(không có)') + '" không được hỗ trợ trên Gateway này. Các model hợp lệ: ' + FREE_MODELS.join(', ') + '.',
+                  message: 'Model "' + (requestModel || '(không có)') + '" không được hỗ trợ trên Gateway này. Các model hợp lệ: ' + allowedList.join(', ') + '.',
                   type: 'invalid_request_error',
                   code: 'model_not_allowed',
-                  allowed_models: FREE_MODELS
+                  allowed_models: allowedList
                 }
               }),
               { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }

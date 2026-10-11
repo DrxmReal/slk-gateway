@@ -773,6 +773,10 @@ function switchTab(tabId) {
     loadAdminPool(true);
   }
 
+  if (tabId === 'models' || tabId === 'chat') {
+    fetchAvailableModels();
+  }
+
   if (window.lucide) lucide.createIcons();
 }
 
@@ -885,6 +889,41 @@ function updateModelStatusSummary() {
   if (healthyEl) healthyEl.textContent = `${healthyCount} / ${total} Online`;
   if (avgUptimeEl) avgUptimeEl.textContent = `${avgUptime}%`;
   if (avgTpsEl) avgTpsEl.textContent = `${avgTps} t/s`;
+
+  renderProviderFilterBar();
+}
+
+function renderProviderFilterBar() {
+  const bar = document.getElementById('provider-filter-bar');
+  if (!bar || !availableModels.length) return;
+
+  const counts = {};
+  const providerNames = {};
+  for (const m of availableModels) {
+    const code = m.provider_code || 'other';
+    counts[code] = (counts[code] || 0) + 1;
+    if (!providerNames[code]) {
+      providerNames[code] = m.provider || m.owned_by || code;
+    }
+  }
+
+  if (activeProviderFilter !== 'all' && !counts[activeProviderFilter]) {
+    activeProviderFilter = 'all';
+  }
+
+  let html = `
+    <button onclick="setModelProviderFilter('all')" data-provider="all" class="provider-chip ${activeProviderFilter === 'all' ? 'active px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition-all' : 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all'}">Tất cả (${availableModels.length})</button>
+  `;
+
+  for (const [code, count] of Object.entries(counts)) {
+    const isActive = activeProviderFilter === code;
+    const displayName = providerNames[code];
+    html += `
+      <button onclick="setModelProviderFilter('${code}')" data-provider="${code}" class="provider-chip ${isActive ? 'active px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition-all' : 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 transition-all'}">${escapeHtml(displayName)} (${count})</button>
+    `;
+  }
+
+  bar.innerHTML = html;
 }
 
 function setModelProviderFilter(providerCode) {
@@ -923,8 +962,16 @@ function getProviderBadgeHtml(providerCode, providerName) {
     longcat: { bg: 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30', letter: 'LC' },
     sensenova: { bg: 'bg-cyan-600/20 text-cyan-400 border-cyan-500/30', letter: 'SN' },
     qwen: { bg: 'bg-teal-600/20 text-teal-400 border-teal-500/30', letter: 'QW' },
+    openrouter: { bg: 'bg-purple-600/20 text-purple-400 border-purple-500/30', letter: 'OR' },
+    inclusionai: { bg: 'bg-rose-600/20 text-rose-400 border-rose-500/30', letter: 'INC' },
+    thinkingmachines: { bg: 'bg-amber-600/20 text-amber-400 border-amber-500/30', letter: 'TM' },
+    apodex: { bg: 'bg-sky-600/20 text-sky-400 border-sky-500/30', letter: 'AP' },
   };
-  const st = styles[providerCode] || { bg: 'bg-slate-800 text-slate-300 border-slate-700', letter: (providerName || 'AI').slice(0, 2).toUpperCase() };
+  const code = String(providerCode || '').toLowerCase();
+  const st = styles[code] || {
+    bg: 'bg-slate-800 text-slate-300 border-slate-700',
+    letter: (providerName || providerCode || 'AI').slice(0, 3).toUpperCase()
+  };
   return `<div class="w-9 h-9 rounded-lg ${st.bg} border flex items-center justify-center font-mono font-bold text-xs shrink-0">${st.letter}</div>`;
 }
 
@@ -2177,6 +2224,7 @@ async function handleSaveGateSettings(e) {
     updateAdminPoolStats(data);
     renderAdminPoolTable();
     checkGatewayHealth();
+    fetchAvailableModels();
     closeGateSettingsModal();
   } catch (err) {
     if (feedback) {

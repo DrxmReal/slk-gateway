@@ -51,7 +51,12 @@ export function formatVnd(amount) {
 // Lấy phí cố định (₫) của 1 request theo model
 export function getRequestFeeVnd(model = '') {
   const fee = MODEL_REQUEST_FEE_VND[model];
-  return Number.isFinite(fee) && fee > 0 ? fee : DEFAULT_REQUEST_FEE_VND;
+  if (Number.isFinite(fee) && fee > 0) return fee;
+  const mLower = String(model || '').toLowerCase();
+  if (mLower.includes(':free') || mLower.includes('-free') || mLower.includes('flash') || mLower.includes('mini') || mLower.includes('lightning') || mLower.includes('small') || mLower.includes('lite')) {
+    return 500;
+  }
+  return DEFAULT_REQUEST_FEE_VND;
 }
 
 // Trừ phí 1 request. Trả về { success, feeVnd, balanceVnd, code, error }

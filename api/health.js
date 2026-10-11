@@ -1,4 +1,4 @@
-import { corsHeaders, FREE_MODELS, MODELS_CATALOG, getRawPoolList } from './_utils.js';
+import { corsHeaders, FREE_MODELS, MODELS_CATALOG, getMergedModelsCatalog, getAllAllowedModels, getRawPoolList } from './_utils.js';
 
 export const config = {
   runtime: 'edge',
@@ -12,14 +12,16 @@ export default function handler(request) {
   const upstreamBase = process.env.UPSTREAM_BASE_URL || 'https://api.hcnsec.cn/v1';
   const pool = getRawPoolList();
   const activeGates = pool.filter(g => g.enabled !== false).length || 1;
+  const mergedCatalog = getMergedModelsCatalog();
+  const allowedModels = getAllAllowedModels();
 
   return new Response(
     JSON.stringify({
       status: 'healthy',
       service: 'SLK Gateway',
       upstream: upstreamBase,
-      total_models: MODELS_CATALOG.length,
-      free_models: FREE_MODELS,
+      total_models: mergedCatalog.length,
+      free_models: allowedModels,
       active_gates: activeGates,
       total_gates: pool.length || 1,
       discord_auth_required: true,

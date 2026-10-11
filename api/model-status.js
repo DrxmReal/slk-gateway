@@ -8,6 +8,8 @@ import {
   UNOROUTER_MODELS,
   MODEL_ALIASES,
   MODELS_CATALOG,
+  getMergedModelsCatalog,
+  ensureKeyPoolSynced,
   corsHeaders,
   handleOptions,
   checkAuth,
@@ -112,6 +114,8 @@ export default async function handler(request) {
     );
   }
 
+  await ensureKeyPoolSynced();
+
   const gates = selectGatesForRequest();
   const activeGate = gates[0] || {
     baseUrl: (process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, ''),
@@ -140,7 +144,7 @@ export default async function handler(request) {
   return new Response(
     JSON.stringify({
       success: true,
-      models: MODELS_CATALOG,
+      models: getMergedModelsCatalog(),
       timestamp: new Date().toISOString(),
     }),
     { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }

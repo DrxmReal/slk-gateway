@@ -2,6 +2,8 @@ import {
   OWNER_ADMIN_DISCORD_ID,
   generateDiscordUserApiKey,
   maskApiKey,
+  parseGateNameAndModels,
+  encodeGateNameWithModels,
 } from './_utils.js';
 import { DEFAULT_USER_BALANCE_VND } from './_wallet.js';
 
@@ -340,21 +342,25 @@ export async function dbLoadGatePoolFromSupabase() {
     const rows = await res.json();
     if (!Array.isArray(rows) || rows.length === 0) return null;
 
-    return rows.map((r, idx) => ({
-      id: r.id || `gate_${idx + 1}`,
-      name: r.name || `Gate #${idx + 1}`,
-      baseUrl: r.base_url || 'https://api.hcnsec.cn/v1',
-      apiKey: r.api_key,
-      maskedKey: r.masked_key || maskApiKey(r.api_key),
-      enabled: r.enabled !== false,
-      isPrimary: idx === 0 || Boolean(r.is_primary),
-      status: r.status || 'online',
-      requests: Number(r.requests || 0),
-      errors: Number(r.errors || 0),
-      lastLatencyMs: r.last_latency_ms || null,
-      lastUsedAt: r.last_used_at || null,
-      addedAt: r.added_at || new Date().toISOString(),
-    }));
+    return rows.map((r, idx) => {
+      const parsed = parseGateNameAndModels(r.name || `Gate #${idx + 1}`);
+      return {
+        id: r.id || `gate_${idx + 1}`,
+        name: parsed.displayName,
+        models: parsed.models,
+        baseUrl: r.base_url || 'https://api.hcnsec.cn/v1',
+        apiKey: r.api_key,
+        maskedKey: r.masked_key || maskApiKey(r.api_key),
+        enabled: r.enabled !== false,
+        isPrimary: idx === 0 || Boolean(r.is_primary),
+        status: r.status || 'online',
+        requests: Number(r.requests || 0),
+        errors: Number(r.errors || 0),
+        lastLatencyMs: r.last_latency_ms || null,
+        lastUsedAt: r.last_used_at || null,
+        addedAt: r.added_at || new Date().toISOString(),
+      };
+    });
   } catch {
     return null;
   }
@@ -367,7 +373,7 @@ export async function dbSyncGatePoolToSupabase(rawPoolList = []) {
   try {
     const payload = rawPoolList.map((g, idx) => ({
       id: g.id,
-      name: g.name,
+      name: encodeGateNameWithModels(g.name, g.models),
       base_url: g.baseUrl,
       api_key: g.apiKey,
       masked_key: g.maskedKey || maskApiKey(g.apiKey),

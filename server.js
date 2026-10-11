@@ -246,8 +246,14 @@ const server = http.createServer(async (req, res) => {
       const webResponse = await proxyRequest(webRequest, proxyPath);
       await sendWebResponse(res, webResponse);
     } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'application/json', ...CORS_HEADERS });
-      res.end(JSON.stringify({ error: { message: err.message, type: 'proxy_error', code: 'gateway_error' } }));
+      res.writeHead(504, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.end(JSON.stringify({
+        error: {
+          message: 'Yêu cầu xử lý mô hình AI quá thời gian chờ (Gateway Timeout). Vui lòng thử lại sau giây lát.',
+          type: 'gateway_timeout',
+          code: 'timeout'
+        }
+      }));
     }
     return;
   }
@@ -261,12 +267,12 @@ const server = http.createServer(async (req, res) => {
       const webResponse = await proxyRequest(webRequest, subpath);
       await sendWebResponse(res, webResponse);
     } catch (err) {
-      res.writeHead(502, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+      res.writeHead(504, { 'Content-Type': 'application/json', ...CORS_HEADERS });
       res.end(JSON.stringify({
         error: {
-          message: `Proxy Error: ${err.message || 'Unknown error'}`,
-          type: 'upstream_error',
-          code: 'gateway_error'
+          message: 'Yêu cầu xử lý mô hình AI quá thời gian chờ (Gateway Timeout). Vui lòng thử lại sau giây lát.',
+          type: 'gateway_timeout',
+          code: 'timeout'
         }
       }));
     }

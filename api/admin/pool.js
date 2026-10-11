@@ -9,6 +9,7 @@ import {
   getPublicPoolList,
   getRawPoolList,
   addGatesToPool,
+  updateGateInPool,
   toggleGateInPool,
   removeGateFromPool,
 } from '../_utils.js';
@@ -166,13 +167,37 @@ export default async function handler(request) {
         const keys = body.keys || '';
         const name = (body.name || 'Gate').trim();
         const baseUrl = (body.baseUrl || '').trim();
+        const models = body.models || [];
 
-        const added = addGatesToPool(keys, name, baseUrl);
+        const added = addGatesToPool(keys, name, baseUrl, models);
         await Promise.allSettled(added.map(g => testGateHealth(g)));
         await dbSyncGatePoolToSupabase(getRawPoolList());
 
         return new Response(
           JSON.stringify(buildPoolPayload({ addedCount: added.length })),
+          { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
+      }
+
+      if (action === 'update') {
+        const updated = updateGateInPool(targetGateId, {
+          name: body.name,
+          baseUrl: body.baseUrl,
+          apiKey: body.apiKey,
+          models: body.models,
+          enabled: body.enabled,
+        });
+
+        if (!updated) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Không tìm thấy Gate với ID này để cập nhật.' }),
+            { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+          );
+        }
+
+        await dbSyncGatePoolToSupabase(getRawPoolList());
+        return new Response(
+          JSON.stringify(buildPoolPayload({ updated: true })),
           { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
         );
       }

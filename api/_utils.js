@@ -298,14 +298,46 @@ export function maskApiKey(key = '') {
   return `${clean.slice(0, 8)}...${clean.slice(-4)}`;
 }
 
+// Hàm phân tách tên Gate và danh sách Model được gán (lưu tương thích ngược qua tên trong Supabase)
+export function parseGateNameAndModels(rawName = '') {
+  const str = String(rawName || '').trim();
+  const marker = '@@models:';
+  const idx = str.indexOf(marker);
+  if (idx !== -1) {
+    const displayName = str.slice(0, idx).trim();
+    const modelsStr = str.slice(idx + marker.length).trim();
+    const models = modelsStr.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+    return { displayName: displayName || 'Gate', models };
+  }
+  return { displayName: str || 'Gate', models: [] };
+}
+
+// Hàm mã hóa tên Gate kèm danh sách Model để lưu vào cột name trong Supabase
+export function encodeGateNameWithModels(displayName = '', models = []) {
+  const cleanName = String(displayName || 'Gate').trim().replace(/@@models:.*$/i, '').trim();
+  if (Array.isArray(models) && models.length > 0) {
+    const cleanList = models.map(s => String(s).trim()).filter(Boolean);
+    if (cleanList.length > 0) {
+      return `${cleanName} @@models:${cleanList.join(',')}`;
+    }
+  }
+  return cleanName;
+}
+
 export function initKeyPoolIfNeeded(initialItems = null) {
   if (Array.isArray(initialItems) && initialItems.length > 0) {
     upstreamKeyPool.length = 0;
     initialItems.forEach((item, idx) => {
       if (item && item.apiKey) {
+        const parsed = parseGateNameAndModels(item.name || `Gate #${idx + 1}`);
+        const assignedModels = Array.isArray(item.models) && item.models.length > 0
+          ? item.models.map(m => String(m).trim()).filter(Boolean)
+          : parsed.models;
+
         upstreamKeyPool.push({
           id: item.id || `gate_${idx + 1}`,
-          name: item.name || `Gate #${idx + 1}`,
+          name: parsed.displayName,
+          models: assignedModels,
           baseUrl: (item.baseUrl || process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, ''),
           apiKey: String(item.apiKey).trim(),
           maskedKey: maskApiKey(item.apiKey),
@@ -348,6 +380,7 @@ export function initKeyPoolIfNeeded(initialItems = null) {
     upstreamKeyPool.push({
       id: `gate_${idx + 1}`,
       name: idx === 0 ? 'Master Gate #1 (Mặc định)' : `Gate #${idx + 1}`,
+      models: [],
       baseUrl: defaultBase,
       apiKey: k,
       maskedKey: maskApiKey(k),
@@ -370,6 +403,7 @@ export function getPublicPoolList() {
   return upstreamKeyPool.map((g, idx) => ({
     id: g.id,
     name: g.name,
+    models: Array.isArray(g.models) ? g.models : [],
     baseUrl: g.baseUrl,
     maskedKey: g.maskedKey,
     enabled: g.enabled,
@@ -389,7 +423,7 @@ export function getRawPoolList() {
   return upstreamKeyPool;
 }
 
-export function addGatesToPool(rawKeysInput, customNamePrefix = 'Gate', customBaseUrl = '') {
+export function addGatesToPool(rawKeysInput, customNamePrefix = 'Gate', customBaseUrl = '', customModels = []) {
   initKeyPoolIfNeeded();
   const baseUrl = (customBaseUrl || process.env.UPSTREAM_BASE_URL || DEFAULT_UPSTREAM_URL).replace(/\/+$/, '');
   const keys = Array.isArray(rawKeysInput)
@@ -399,17 +433,23 @@ export function addGatesToPool(rawKeysInput, customNamePrefix = 'Gate', customBa
         .map(s => s.trim())
         .filter(Boolean);
 
+  const assignedModels = Array.isArray(customModels)
+    ? customModels.map(m => String(m).trim()).filter(Boolean)
+    : String(customModels || '').split(/[\s,;]+/).map(m => m.trim()).filter(Boolean);
+
   const added = [];
   for (const k of keys) {
     const existing = upstreamKeyPool.find(g => g.apiKey === k && g.baseUrl === baseUrl);
     if (existing) {
       existing.enabled = true;
+      if (assignedModels.length > 0) existing.models = assignedModels;
       continue;
     }
     const nextNum = upstreamKeyPool.length + 1;
     const newGate = {
       id: `gate_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       name: keys.length === 1 && customNamePrefix && customNamePrefix !== 'Gate' ? customNamePrefix : `${customNamePrefix || 'Gate'} #${nextNum}`,
+      models: assignedModels,
       baseUrl,
       apiKey: k,
       maskedKey: maskApiKey(k),
@@ -425,6 +465,30 @@ export function addGatesToPool(rawKeysInput, customNamePrefix = 'Gate', customBa
     added.push(newGate);
   }
   return added;
+}
+
+export function updateGateInPool(gateId, updates = {}) {
+  initKeyPoolIfNeeded();
+  const gate = upstreamKeyPool.find(g => g.id === gateId);
+  if (!gate) return null;
+
+  if (typeof updates.name === 'string' && updates.name.trim()) {
+    gate.name = updates.name.trim().replace(/@@models:.*$/i, '').trim();
+  }
+  if (typeof updates.baseUrl === 'string' && updates.baseUrl.trim()) {
+    gate.baseUrl = updates.baseUrl.trim().replace(/\/+$/, '');
+  }
+  if (typeof updates.apiKey === 'string' && updates.apiKey.trim()) {
+    gate.apiKey = updates.apiKey.trim();
+    gate.maskedKey = maskApiKey(gate.apiKey);
+  }
+  if (Array.isArray(updates.models)) {
+    gate.models = updates.models.map(m => String(m).trim()).filter(Boolean);
+  }
+  if (typeof updates.enabled === 'boolean') {
+    gate.enabled = updates.enabled;
+  }
+  return gate;
 }
 
 export function toggleGateInPool(gateId, enabled) {
@@ -446,20 +510,82 @@ export function removeGateFromPool(gateId) {
   return true;
 }
 
-// Chọn danh sách Gate theo thuật toán Round-Robin để tự động cân bằng tải & Failover
-export function selectGatesForRequest() {
+// Chọn danh sách Gate theo model yêu cầu & thuật toán Round-Robin để cân bằng tải
+export function selectGatesForRequest(requestModel = '') {
   initKeyPoolIfNeeded();
-  const active = upstreamKeyPool.filter(g => g.enabled);
-  const poolToUse = active.length > 0 ? active : upstreamKeyPool;
+  const active = upstreamKeyPool.filter(g => g.enabled !== false);
+  if (active.length === 0) return [];
 
+  const routedModel = MODEL_ALIASES[requestModel] || requestModel;
+
+  // 1. Nếu có Gate được gán cụ thể model này -> ưu tiên sử dụng nhóm Gate đó
+  if (requestModel || routedModel) {
+    const matched = active.filter(g => {
+      if (!Array.isArray(g.models) || g.models.length === 0) return false;
+      return (
+        g.models.includes('*') ||
+        g.models.includes(requestModel) ||
+        g.models.includes(routedModel)
+      );
+    });
+
+    if (matched.length > 0) {
+      const startIdx = roundRobinCounter % matched.length;
+      roundRobinCounter = (roundRobinCounter + 1) % 1000000;
+      return matched.map((_, i) => matched[(startIdx + i) % matched.length]);
+    }
+  }
+
+  // 2. Nếu model thuộc UnoRouter nhưng chưa có gate riêng trong pool -> kiểm tra pool có gate unorouter không, nếu không fallback env
+  if (UNOROUTER_MODELS.includes(routedModel)) {
+    const unoGates = active.filter(g => g.baseUrl && g.baseUrl.toLowerCase().includes('unorouter'));
+    if (unoGates.length > 0) {
+      const startIdx = roundRobinCounter % unoGates.length;
+      roundRobinCounter = (roundRobinCounter + 1) % 1000000;
+      return unoGates.map((_, i) => unoGates[(startIdx + i) % unoGates.length]);
+    }
+    const envUnoKey = (process.env.UNOROUTER_API_KEY || UNOROUTER_API_KEY || '').trim();
+    return [{
+      id: 'gate_unorouter_fallback',
+      name: 'UnoRouter Gate',
+      baseUrl: UNOROUTER_BASE_URL,
+      apiKey: envUnoKey,
+      enabled: true,
+      requests: 0,
+      errors: 0,
+    }];
+  }
+
+  // 3. Nếu model thuộc OpenCode (space-bunny) -> tìm gate opencode trong pool hoặc fallback env
+  if (routedModel === 'space-bunny-free') {
+    const openCodeGates = active.filter(g => g.baseUrl && g.baseUrl.toLowerCase().includes('opencode'));
+    if (openCodeGates.length > 0) {
+      const startIdx = roundRobinCounter % openCodeGates.length;
+      roundRobinCounter = (roundRobinCounter + 1) % 1000000;
+      return openCodeGates.map((_, i) => openCodeGates[(startIdx + i) % openCodeGates.length]);
+    }
+    const envOpenCodeKey = (process.env.OPENCODE_API_KEY || OPENCODE_API_KEY || '').trim();
+    return [{
+      id: 'gate_opencode_zen_fallback',
+      name: 'OpenCode Zen Gate',
+      baseUrl: OPENCODE_BASE_URL,
+      apiKey: envOpenCodeKey,
+      enabled: true,
+      requests: 0,
+      errors: 0,
+    }];
+  }
+
+  // 4. Các Gate chung (không gán model riêng biệt hoặc gán '*')
+  const generalGates = active.filter(g => {
+    if (!Array.isArray(g.models) || g.models.length === 0) return true;
+    return g.models.includes('*');
+  });
+
+  const poolToUse = generalGates.length > 0 ? generalGates : active;
   const startIdx = roundRobinCounter % poolToUse.length;
   roundRobinCounter = (roundRobinCounter + 1) % 1000000;
-
-  const ordered = [];
-  for (let i = 0; i < poolToUse.length; i++) {
-    ordered.push(poolToUse[(startIdx + i) % poolToUse.length]);
-  }
-  return ordered;
+  return poolToUse.map((_, i) => poolToUse[(startIdx + i) % poolToUse.length]);
 }
 
 export function isAllowedAdminDiscordId(discordUserId = '') {
@@ -572,6 +698,40 @@ export function mergeModelsWithCatalog() {
 // (VD: tên Gate "Master Gate #1 (Mặc định)" có chữ "ậ" sẽ làm fetch/undici throw lỗi)
 export function toHeaderSafeValue(value) {
   return String(value ?? '').replace(/[^\x00-\xff]/g, ch => encodeURIComponent(ch));
+}
+
+// Hàm che giấu lỗi & ngăn rò rỉ link API gốc (Masking origin endpoints to Timeout/Overload error)
+export function maskAndSanitizeErrorResponse(errOrStatus, rawBodyOrMsg = '', customHeaders = {}) {
+  const status = typeof errOrStatus === 'number' ? errOrStatus : 504;
+  let message = 'Yêu cầu xử lý mô hình AI quá thời gian chờ (Gateway Timeout). Vui lòng thử lại sau giây lát.';
+  let type = 'gateway_timeout';
+  let code = 'timeout';
+
+  if (status === 429) {
+    message = 'Mô hình AI hiện đang nhận quá nhiều yêu cầu đồng thời (Too Many Requests). Vui lòng đợi vài giây và thử lại.';
+    type = 'rate_limit_error';
+    code = 'rate_limit';
+  }
+
+  const safeStatus = status === 429 ? 429 : 504;
+
+  return new Response(
+    JSON.stringify({
+      error: {
+        message,
+        type,
+        code
+      }
+    }),
+    {
+      status: safeStatus,
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders,
+        ...customHeaders,
+      }
+    }
+  );
 }
 
 export async function proxyRequest(request, targetPath) {
@@ -710,32 +870,8 @@ export async function proxyRequest(request, targetPath) {
     chargeInfo = charge;
   }
 
-  // Lấy danh sách Gates theo Round-Robin; nếu gọi model chuyên biệt thì điều hướng tới Gate tương ứng
-  const routedModel = MODEL_ALIASES[requestModel] || requestModel;
-  const isSpaceBunny = routedModel === 'space-bunny-free';
-  const isUnoRouter = UNOROUTER_MODELS.includes(routedModel);
-
-  const candidateGates = isSpaceBunny
-    ? [{
-        id: 'gate_opencode_zen',
-        name: 'OpenCode Zen Gate',
-        baseUrl: OPENCODE_BASE_URL,
-        apiKey: OPENCODE_API_KEY,
-        enabled: true,
-        requests: 0,
-        errors: 0,
-      }]
-    : isUnoRouter
-    ? [{
-        id: 'gate_unorouter',
-        name: 'UnoRouter Gate',
-        baseUrl: UNOROUTER_BASE_URL,
-        apiKey: UNOROUTER_API_KEY,
-        enabled: true,
-        requests: 0,
-        errors: 0,
-      }]
-    : selectGatesForRequest();
+  // Lấy danh sách Gates theo model yêu cầu; tự động điều hướng đúng Gate phục vụ model đó
+  const candidateGates = selectGatesForRequest(requestModel);
   let lastError = null;
   let lastUpstreamRes = null;
 
@@ -760,12 +896,19 @@ export async function proxyRequest(request, targetPath) {
 
       gate.lastLatencyMs = Date.now() - startTime;
 
-      // Nếu Gate hiện tại bị hết hạn/rate-limit/lỗi server và còn Gate dự phòng -> tự động chuyển Gate tiếp theo
+      // Nếu Gate hiện tại bị lỗi/rate-limit và còn Gate dự phòng -> tự động failover sang Gate tiếp theo
       if ([401, 402, 403, 429, 500, 502, 503, 504].includes(upstreamRes.status) && candidateGates.length > 1) {
         gate.errors += 1;
         gate.status = upstreamRes.status === 429 ? 'rate_limited' : 'error';
         lastUpstreamRes = upstreamRes;
         continue;
+      }
+
+      if (!upstreamRes.ok) {
+        gate.errors += 1;
+        gate.status = upstreamRes.status === 429 ? 'rate_limited' : 'error';
+        const errText = await upstreamRes.text().catch(() => '');
+        return maskAndSanitizeErrorResponse(upstreamRes.status, errText, corsHeaders);
       }
 
       gate.status = 'online';
@@ -792,31 +935,9 @@ export async function proxyRequest(request, targetPath) {
   }
 
   if (lastUpstreamRes) {
-    const resHeaders = new Headers(lastUpstreamRes.headers);
-    for (const [key, value] of Object.entries(corsHeaders)) {
-      resHeaders.set(key, value);
-    }
-    return new Response(lastUpstreamRes.body, {
-      status: lastUpstreamRes.status,
-      statusText: lastUpstreamRes.statusText,
-      headers: resHeaders,
-    });
+    const errText = await lastUpstreamRes.text().catch(() => '');
+    return maskAndSanitizeErrorResponse(lastUpstreamRes.status, errText, corsHeaders);
   }
 
-  return new Response(
-    JSON.stringify({
-      error: {
-        message: `Proxy Error: Tất cả các Gate trong Pool đều không phản hồi: ${lastError?.message || 'Unknown error'}`,
-        type: 'upstream_error',
-        code: 'gateway_error'
-      }
-    }),
-    {
-      status: 502,
-      headers: {
-        'Content-Type': 'application/json',
-        ...corsHeaders,
-      }
-    }
-  );
+  return maskAndSanitizeErrorResponse(504, lastError?.message || '', corsHeaders);
 }

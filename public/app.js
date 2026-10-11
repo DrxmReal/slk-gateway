@@ -1768,6 +1768,15 @@ function renderAdminPoolTable() {
 
     const latencyText = gate.lastLatencyMs ? `${gate.lastLatencyMs} ms` : 'Sẵn sàng';
 
+function renderGateModelsBadge(models = []) {
+  if (!Array.isArray(models) || models.length === 0 || models.includes('*')) {
+    return `<span class="px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 text-[11px] text-slate-400 font-mono">Tất cả (*)</span>`;
+  }
+  return `<div class="flex flex-wrap gap-1 max-w-[200px]">` +
+    models.map(m => `<span class="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-[10px] font-mono">${escapeHtml(m)}</span>`).join('') +
+    `</div>`;
+}
+
     return `
       <tr class="hover:bg-slate-800/35 transition-colors">
         <td class="py-3.5 px-3 font-medium text-white">
@@ -1783,6 +1792,9 @@ function renderAdminPoolTable() {
         <td class="py-3.5 px-3 font-mono text-indigo-300">
           <span class="bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg">${escapeHtml(gate.baseUrl)}</span>
         </td>
+        <td class="py-3.5 px-3">
+          ${renderGateModelsBadge(gate.models)}
+        </td>
         <td class="py-3.5 px-3" id="gate-status-cell-${gate.id}">
           ${statusBadge}
         </td>
@@ -1795,6 +1807,14 @@ function renderAdminPoolTable() {
         </td>
         <td class="py-3.5 px-3 text-right">
           <div class="flex items-center justify-end space-x-1.5">
+            <button
+              onclick="openGateSettingsModal('${gate.id}')"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium flex items-center space-x-1 transition-all"
+              title="Cài đặt Gate & Quản lý danh sách model"
+            >
+              <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+              <span>Cài đặt</span>
+            </button>
             <button
               id="btn-test-gate-${gate.id}"
               onclick="testSingleAdminGate('${gate.id}')"
@@ -1834,6 +1854,7 @@ async function handleAddGatesToPool(e) {
   const nameInput = document.getElementById('pool-gate-name') || document.getElementById('admin-new-gate-name');
   const urlInput = document.getElementById('pool-gate-url') || document.getElementById('admin-new-gate-url');
   const keysInput = document.getElementById('pool-gate-keys') || document.getElementById('admin-new-gate-keys');
+  const modelsInput = document.getElementById('pool-gate-models');
   const btn = document.getElementById('btn-add-pool-keys') || document.getElementById('btn-add-gate');
   const feedback = document.getElementById('admin-add-feedback');
 
@@ -1842,6 +1863,11 @@ async function handleAddGatesToPool(e) {
     alert('Vui lòng dán ít nhất 1 Upstream API Key (sk-...) vào ô!');
     return;
   }
+
+  const rawModelsStr = (modelsInput?.value || '').trim();
+  const assignedModels = rawModelsStr
+    ? rawModelsStr.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean)
+    : [];
 
   if (btn) btn.disabled = true;
   if (feedback) feedback.classList.add('hidden');
@@ -1855,6 +1881,7 @@ async function handleAddGatesToPool(e) {
         name: (nameInput?.value || '').trim(),
         baseUrl: (urlInput?.value || 'https://api.hcnsec.cn/v1').trim(),
         keys: rawKeys,
+        models: assignedModels,
         discordUserId: discordUser?.id || '',
       }),
     });
@@ -1884,6 +1911,150 @@ async function handleAddGatesToPool(e) {
       feedback.className = 'mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs';
       feedback.textContent = `Lỗi: ${err.message}`;
       feedback.classList.remove('hidden');
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ------------------------------------------
+// Gate Settings & Model Assignment Modal
+// ------------------------------------------
+let currentEditingGateId = null;
+let currentEditingGateModels = [];
+
+function openGateSettingsModal(gateId) {
+  const gate = adminGatesList.find(g => g.id === gateId);
+  if (!gate) return;
+  currentEditingGateId = gate.id;
+  currentEditingGateModels = Array.isArray(gate.models) ? [...gate.models] : [];
+
+  const idInput = document.getElementById('setting-gate-id');
+  const nameInput = document.getElementById('setting-gate-name');
+  const urlInput = document.getElementById('setting-gate-url');
+  const keyInput = document.getElementById('setting-gate-key');
+  const allCheck = document.getElementById('setting-gate-all-models');
+
+  if (idInput) idInput.value = gate.id;
+  if (nameInput) nameInput.value = gate.name || '';
+  if (urlInput) urlInput.value = gate.baseUrl || '';
+  if (keyInput) keyInput.value = '';
+  if (allCheck) {
+    allCheck.checked = currentEditingGateModels.includes('*') || currentEditingGateModels.length === 0;
+  }
+
+  renderGateSettingsModelsChips();
+  const modal = document.getElementById('modal-gate-settings');
+  if (modal) modal.classList.remove('hidden');
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeGateSettingsModal() {
+  const modal = document.getElementById('modal-gate-settings');
+  if (modal) modal.classList.add('hidden');
+  const feedback = document.getElementById('setting-gate-feedback');
+  if (feedback) feedback.classList.add('hidden');
+}
+
+function renderGateSettingsModelsChips() {
+  const container = document.getElementById('setting-gate-models-chips');
+  if (!container) return;
+  const allCheck = document.getElementById('setting-gate-all-models');
+  if (allCheck && allCheck.checked) {
+    container.innerHTML = `<span class="text-xs text-slate-400 italic">Gate đang phục vụ tất cả các model (*)</span>`;
+    return;
+  }
+
+  if (currentEditingGateModels.length === 0) {
+    container.innerHTML = `<span class="text-xs text-slate-500 italic">Chưa gán model cụ thể (Gate sẽ phục vụ tất cả model)</span>`;
+    return;
+  }
+
+  container.innerHTML = currentEditingGateModels.map(m => `
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 text-xs font-mono">
+      <span>${escapeHtml(m)}</span>
+      <button type="button" onclick="handleRemoveModelFromCurrentGate('${escapeHtml(m)}')" class="hover:text-rose-400 text-slate-400 font-bold ml-1 transition-colors" title="Xóa model này khỏi Gate">✕</button>
+    </span>
+  `).join('');
+}
+
+function toggleGateAllModelsCheckbox(chk) {
+  if (chk.checked) {
+    currentEditingGateModels = ['*'];
+  } else {
+    currentEditingGateModels = currentEditingGateModels.filter(m => m !== '*');
+  }
+  renderGateSettingsModelsChips();
+}
+
+function handleAddModelToCurrentGate() {
+  const sel = document.getElementById('setting-select-available-model');
+  const input = document.getElementById('setting-custom-model-input');
+  const val = (input?.value || sel?.value || '').trim();
+  if (!val) return;
+
+  const allCheck = document.getElementById('setting-gate-all-models');
+  if (allCheck) allCheck.checked = false;
+  currentEditingGateModels = currentEditingGateModels.filter(m => m !== '*');
+
+  if (!currentEditingGateModels.includes(val)) {
+    currentEditingGateModels.push(val);
+  }
+  if (input) input.value = '';
+  if (sel) sel.value = '';
+  renderGateSettingsModelsChips();
+}
+
+function handleRemoveModelFromCurrentGate(modelId) {
+  currentEditingGateModels = currentEditingGateModels.filter(m => m !== modelId);
+  renderGateSettingsModelsChips();
+}
+
+async function handleSaveGateSettings(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (!currentEditingGateId) return;
+
+  const btn = document.getElementById('btn-save-gate-settings');
+  const feedback = document.getElementById('setting-gate-feedback');
+  const name = (document.getElementById('setting-gate-name')?.value || '').trim();
+  const baseUrl = (document.getElementById('setting-gate-url')?.value || '').trim();
+  const apiKey = (document.getElementById('setting-gate-key')?.value || '').trim();
+  const allCheck = document.getElementById('setting-gate-all-models');
+
+  const models = allCheck?.checked ? ['*'] : currentEditingGateModels;
+
+  if (btn) btn.disabled = true;
+  if (feedback) feedback.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/admin/pool', {
+      method: 'POST',
+      headers: getAdminRequestHeaders(),
+      body: JSON.stringify({
+        action: 'update',
+        gateId: currentEditingGateId,
+        name,
+        baseUrl,
+        apiKey: apiKey || undefined,
+        models,
+        discordUserId: discordUser?.id || '',
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Cập nhật Gate thất bại');
+    }
+
+    adminGatesList = data.pool || [];
+    updateAdminPoolStats(data);
+    renderAdminPoolTable();
+    checkGatewayHealth();
+    closeGateSettingsModal();
+  } catch (err) {
+    if (feedback) {
+      feedback.className = 'p-2.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs block';
+      feedback.textContent = `Lỗi: ${err.message}`;
     }
   } finally {
     if (btn) btn.disabled = false;

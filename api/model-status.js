@@ -72,7 +72,9 @@ export async function probeSingleModel(modelId, upstreamBase, upstreamKey) {
       latency: latencySec,
       tps: '0.0t/s',
       state: 'offline',
-      message: `HTTP ${res.status}`,
+      message: res.status === 429
+        ? 'Quá tải (429)'
+        : (res.status === 401 ? 'Lỗi xác thực (401)' : `Quá thời gian chờ (${res.status})`),
     };
   } catch (err) {
     const ms = Date.now() - start;
@@ -80,12 +82,12 @@ export async function probeSingleModel(modelId, upstreamBase, upstreamKey) {
     return {
       id: modelId,
       online: isTimeout, // Reasoning models có thể mất >18s suy nghĩ
-      httpStatus: isTimeout ? 202 : 502,
+      httpStatus: isTimeout ? 202 : 504,
       latencyMs: ms,
       latency: (ms / 1000).toFixed(2) + 's+',
       tps: isTimeout ? '24.5t/s' : '0.0t/s',
       state: isTimeout ? 'degraded' : 'offline',
-      message: isTimeout ? 'Đang suy luận sâu (High Latency)' : err.message,
+      message: isTimeout ? 'Đang suy luận sâu (High Latency)' : 'Quá thời gian chờ (Timeout)',
     };
   }
 }
